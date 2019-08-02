@@ -1,0 +1,27 @@
+include:
+  - project: 'infra/ci-cd/base'
+    file: '.gitlab-ci.yml'
+
+  - project: 'infra/ci-cd/tests'
+    file: '.gitlab-ci.yml'
+
+  - project: 'infra/ci-cd/deploy'
+    file: '.gitlab-ci.yml'
+
+  - project: 'infra/ci-cd/python'
+    file: '.gitlab-ci.yml'
+
+
+
+docker:
+  dependencies: []
+  image: registry.mobilityservices.io/infra/images/docker
+  stage: build
+  when: always
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker build --build-arg NPM_TOKEN=${NPM_TOKEN} --pull --cache-from
+      $IMAGE:latest -t $IMAGE:$VERSION -t $IMAGE:latest .
+      --build-arg USERNAME=$USERNAME --build-arg PASSWORD=$PASSWORD
+    - docker push $IMAGE:$VERSION
+    - docker push $IMAGE:latest
