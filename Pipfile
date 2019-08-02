@@ -17,7 +17,7 @@ dataclasses = "*"
 dask = {extras = ["complete"],version = "*"}
 jsonnet = "*"
 experiment-tracker = "*"
-pytorch = "*"
+torch = "*"
 scikit-learn = "*"
 
 [dev-packages]

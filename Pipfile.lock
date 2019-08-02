@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "ebedca3890607a8d79f0d06a886f3710c92269fdaf1ec54f55a4d988616a4a1c"
+            "sha256": "edca4239c21b78c3d92dc3dff78e151b78edda6f931fdf6d2c663b4acbfd4a3a"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -79,7 +79,7 @@
                 "sha256:82319ad6095ace27d007e9b85fe8627078c38bd50e38e8e450ca556a37edb8ab",
                 "sha256:c0d9677b99b703737984294e82f89c333669dea8433383aad9ee783ed9c47172"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==2.2.0"
         },
         "dataclasses": {
@@ -87,7 +87,7 @@
                 "sha256:454a69d788c7fda44efd71e259be79577822f5e3f53f029a22d08004e951dc9f",
                 "sha256:6988bd2b895eef432d562370bb707d540f32f7360ab13da45340101bc2307d84"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==0.6"
         },
         "decorator": {
@@ -114,7 +114,7 @@
             "hashes": [
                 "sha256:9cfb4ec966a3d7d9375b68f654a848d9959dd66811ff7df2055532eb9e0dbbbc"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==0.2.0"
         },
         "fsspec": {
@@ -174,14 +174,14 @@
             "hashes": [
                 "sha256:b9ac8ba0b44aac85a66bf950a155ee6286f0234db162a92a3f8cd2ef7a58a9cc"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==0.13.0"
         },
         "jurbey": {
             "hashes": [
                 "sha256:956ab1285ba36aab587c419fbe5690d04596aaf4192a9eedebcce8e936e2fa06"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==1.2.89"
         },
         "kiwisolver": {
@@ -275,7 +275,7 @@
                 "sha256:05edfad9ef8543074c7a6b605c72a8858c813c766e060d9f771270dd81317dcb",
                 "sha256:3a6812a55eb4affe937942fcdd980631512267532687e8e814b2b8a560754085"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==4.0.18"
         },
         "mock": {
@@ -283,14 +283,14 @@
                 "sha256:83657d894c90d5681d62155c82bda9c1187827525880eda8ff5df4ec813437c3",
                 "sha256:d157e52d4e5b938c550f39eb2fd15610db062441a9c2747d3dbfa9298211d0f8"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==3.0.5"
         },
         "modeldb": {
             "hashes": [
                 "sha256:27180666960ec117022d1697d692db83fabcaddae25f8e1456b8a69dc5134c54"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==0.0.1a30"
         },
         "more-itertools": {
@@ -326,7 +326,7 @@
             "hashes": [
                 "sha256:8311ddef63cf5c5c5e7c1d0212dd141d9a1fe3f474915281b73597ed5f1d4e3d"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==2.3"
         },
         "numpy": {
@@ -374,7 +374,7 @@
                 "sha256:de7ecb4b120e98b91e8a2a21f186571266a8d1faa31d92421e979c7ca67d8e5c",
                 "sha256:df7e1933a0b83920769611c5d6b9a1bf301e3fa6a544641c6678c67621fe9843"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==0.25.0"
         },
         "partd": {
@@ -474,7 +474,7 @@
                 "sha256:f0d43828003c82dbc9269de87aa449e9896077a71954fbbb10a614c017e65737",
                 "sha256:f78e8b487de4d92640105c1389e5b90be3496b1d75c90a666edd8737cc2dbab7"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==2.8.3"
         },
         "py": {
@@ -496,7 +496,7 @@
                 "sha256:6ef6d06de77ce2961156013e9dff62f1b2688aa04d0dc244299fe7d67e09370d",
                 "sha256:a736fed91c12681a7b34617c8fcefe39ea04599ca72c608751c31d89579a3f77"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==5.0.1"
         },
         "python-dateutil": {
@@ -510,15 +510,8 @@
             "hashes": [
                 "sha256:b7a31162f2a01965a5efb94453ce69230ed208468b0bbc7fdfc56e6d8df2e281"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==0.1.11"
-        },
-        "pytorch": {
-            "hashes": [
-                "sha256:a6915d372c085a02eceebf59d16cbcc18a2693ac3487a53e3cc8be31fee65079"
-            ],
-            "index": "pypi",
-            "version": "==1.0.2"
         },
         "pytz": {
             "hashes": [
@@ -571,7 +564,7 @@
                 "sha256:eb2b7bed0a26ba5ce3700e15938b28a4f4513578d3e54a2156c29df19ac5fd01",
                 "sha256:eb9b8ebf59eddd8b96366428238ab27d05a19e89c5516ce294abc35cea75d003"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==0.21.3"
         },
         "scipy": {
@@ -658,6 +651,16 @@
                 "sha256:08fdd5ef7c96480ad11c12d472de21acd32359996f69a5259299b540feba4560"
             ],
             "version": "==0.10.0"
+        },
+        "torch": {
+            "hashes": [
+                "sha256:3f3023345c6db4db28a79f52ada186fc6307ba8a0c85252eb0a70b78eff3a443",
+                "sha256:87d4778e848e4c83505a0d10135d514871ea0ae2da75e0710be272ea5048f9e3",
+                "sha256:9f4182043f8ac72d6fd52c5189f1600c94e827b698748c355097077874e8c810",
+                "sha256:ee2c48794c767606f4629ee3d1f147e2fcb1a02a31b6bca252cc7c7e3ad22c4a"
+            ],
+            "index": "Nexus",
+            "version": "==1.1.0.post2"
         },
         "tornado": {
             "hashes": [
@@ -798,7 +801,7 @@
             "hashes": [
                 "sha256:b9ac8ba0b44aac85a66bf950a155ee6286f0234db162a92a3f8cd2ef7a58a9cc"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==0.13.0"
         },
         "jsonschema": {
@@ -814,7 +817,7 @@
                 "sha256:5b290f93b98ffbc21c0c7e749f054b3267782166d72fa5e3ed1ed4eaf34a2b78",
                 "sha256:d9dc4b3318f310e34c82951ea5d6683f67bed7def4b259fafbfe4f1beb1d8e5f"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==1.0.0"
         },
         "jupyter-client": {
@@ -842,7 +845,7 @@
             "hashes": [
                 "sha256:e8edc431e4c904e87e70ac9d3bf891485fb78429e51c207f7bfddf03e5eb7c17"
             ],
-            "index": "pypi",
+            "index": "Nexus",
             "version": "==1.2.1"
         },
         "markupsafe": {
