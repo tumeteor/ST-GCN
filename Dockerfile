@@ -9,7 +9,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     python3 python3-pip python3-venv ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip install pipenv
+RUN python3 -m pip install pipenv
 
 WORKDIR    /
 
