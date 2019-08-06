@@ -1,5 +1,8 @@
 from jurbey.jurbey import JURBEY
 import tempfile
+import pandas as pd
+import logging
+import networkx as nx
 
 from src.module import MINIO_CLIENT_GETTER
 
@@ -25,7 +28,8 @@ def populate_graph_with_max_speed(g):
     return g
 
 
-def get_traffic_model_from_minio(bucket_name, interested_date='2019-07-07', interested_hour = '7', prefix='merged_file'):
+def _get_traffic_model_from_minio(bucket_name='traffic-update', interested_date='2019-08-02', interested_hour='8',
+                                  prefix='merged_file'):
     """
     Fetch traffic update data from Minio for every hour of a specific day, and the upload them into
     the corresponding S3 bucket. The traffic data can be then consumed for e.g., ETA benchmarking
@@ -36,18 +40,42 @@ def get_traffic_model_from_minio(bucket_name, interested_date='2019-07-07', inte
         s3_path (:obj:`str`, optional): The path that we want to store traffic files in s3
 
     Returns:
-        None
+        DataFrame
     Raises:
         botocore.exceptions.ClientError: The error occurs when writing to s3
     """
     traffic_objects = MINIO_CLIENT_GETTER().list_objects_v2(bucket_name, prefix=prefix,
-                              recursive=False)
-
+                                                            recursive=False)
+    df = None
     for traffic_obj in traffic_objects:
-        if traffic_obj.last_modified.strftime("%Y-%m-%d") == interested_date and traffic_obj.last_modified.hour == interested_hour:
+        if (traffic_obj.last_modified.strftime("%Y-%m-%d") == interested_date) and \
+                (traffic_obj.last_modified.hour == int(interested_hour)):
+            print(f"hour: {traffic_obj.last_modified.hour}")
             with tempfile.NamedTemporaryFile(mode='w', delete=False) as tempf:
                 MINIO_CLIENT_GETTER().fget_object(bucket_name, traffic_obj.object_name, tempf.name)
+                df = pd.read_csv(tempf.name, header=0)
+                logging.info("Loaded fresh traffic..")
+                break
+    if df is None:
+        logging.warning(f"There is no speed data on date {interested_date} and hour {interested_hour}")
+    return df
 
 
+def populate_graph_with_fresh_speed(g):
+    fresh_edge_list = list()
+    df = _get_traffic_model_from_minio()
+    for index, row in df.iterrows():
+        try:
+            g[int(row[0])][int(row[1])]["fresh_speed"] = float(row[2])
+            fresh_edge_list.append((int(row[0]), int(row[1])))
+        except KeyError as e:
+            pass
+            # logging.exception(f"Node does not exist in the graph: {e}")
+    return g, fresh_edge_list
 
 
+def get_dataframe_from_graph(g):
+    df = nx.to_pandas_edgelist(g)
+    df = df[['source', 'target', 'speed']]
+    df.rename(columns={'speed': 'weight'})
+    return df
