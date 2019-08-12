@@ -18,6 +18,14 @@ def sample_graph_by_nodes(g, num_of_nodes):
 
 
 def partition_graph_by_lonlat(g):
+    """
+    We partition the graph using geographical data
+    Args:
+        g (JURBEY): the graph
+
+    Returns:
+       networkx.DiGraph: the partition graph
+    """
     selected_nodes = list()
     for node in g.nodes():
         coord = g.nodes[node]['data'].coord
@@ -27,6 +35,16 @@ def partition_graph_by_lonlat(g):
 
 
 def _is_inside_selected_area(lon, lat):
+    """
+    Check if the point (lon, lat) is in the predefined area. Hard-assigned the area
+    to be an area in Charlottenburg, Berlin, with approx. 6000 edges.
+    Args:
+        lon (double): longitude of the interested point
+        lat (double): latitude of the interested point
+
+    Returns:
+       Bool: whether the point is in the area
+    """
     top_left = [13.292427062988281, 52.50556442091497]
     bottom_left = [13.332939147949219, 52.50556442091497]
     bottom_right = [13.332939147949219, 52.52144366674759]
