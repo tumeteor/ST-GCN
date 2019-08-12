@@ -1,0 +1,81 @@
+{
+  "queryType":"timeseries",
+  "dataSource":"mytaxi-speed-berlin-index",
+  "dimensions": ["from_node", "to_node"],
+  "intervals":[
+    "2019-04-01/2019-04-07"
+  ],
+  "granularity":"fifteen_minute",
+  "aggregations":[
+    {
+      "type":"count",
+      "name":"count"
+    },
+    {
+      "type":"doubleSum",
+      "name":"total_speed",
+      "fieldName":"estimated_speed"
+    },
+    {
+       "type" : "floatFirst",
+       "name" :"from_node",
+       "fieldName" :"from_node"
+    },
+    {
+       "type" : "floatFirst",
+       "name" :"to_node",
+       "fieldName" :"to_node"
+    }
+  ],
+  "postAggregations" : [{
+    "type"   : "arithmetic",
+    "name"   : "average",
+    "fn"     : "*",
+    "fields" : [
+      { "type"   : "arithmetic",
+        "name"   : "div",
+        "fn"     : "quotient",
+        "fields" : [
+          { "type" : "fieldAccess", "name" : "total_speed", "fieldName" : "total_speed" },
+          { "type" : "fieldAccess", "name" : "count", "fieldName" : "count" }
+
+        ]
+      },
+      { "type" : "constant", "name": "const", "value" : 1 }
+    ]
+  }],
+  "context":{
+    "grandTotal":false
+  },
+  "having":
+  {
+    "type": "and",
+    "havingSpecs": [
+      {
+        "type": "greaterThan",
+        "aggregation": "count",
+        "value": 1
+      },
+      {
+        "type": "lessThan",
+        "dimension": "estimated_speed",
+        "value": 100
+      }
+    ]
+  },
+  "filter":{
+    "type":"and",
+    "fields": [
+      {
+        "type":"selector",
+        "dimension":"from_node",
+        "value":"387513698"
+      },
+      {
+        "type":"selector",
+        "dimension":"to_node",
+        "value":"1392640958"
+      }
+    ]
+  }
+}
