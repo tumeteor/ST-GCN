@@ -1,59 +1,18 @@
+from logs import get_logger_settings, setup_logging
 import random
-
+import sys
 import numpy as np
 import argparse
 import json
 import logging
 import networkx as nx
-from logs import get_logger_settings, setup_logging
 from src.config import Config
 from src.reader import populate_graph_with_max_speed, read_jurbey_from_minio, populate_graph_with_fresh_speed, \
-    get_dataframe_from_graph
+    get_dataframe_from_graph, contruct_time_series_traffic_data
 from src.nmf.fast_nmf import train_nmf_with_dataframe, train_nmf_with_sparse_matrix
 from src.graph_utils import sample_graph_by_nodes
 from src.eval.measures import rmse
-
-
-def nmf(X, K, iterations=100, alpha=0.0002, beta=0.02):
-    """
-    Simple matrix factorization using multiplicative update. The stochastic gradient descent approach
-    only optimizes for non-zero values.
-    https://www.ismll.uni-hildesheim.de/lehre/semML-16w/script/Group1_slides.pdf
-    Args:
-        X (scipy.sparse.csr_matrix): sparse matrix that contains mostly zeros
-        K (int): number of latent components
-        iterations: number of iters for optimization
-        alpha: learning rate
-        beta: parameter of regularization
-
-    Returns:
-      (numpy.ndarray, numpy.ndarray): 2D arrays of the decomposed matrices
-    """
-    m, n = X.shape
-    W = np.random.rand(m, K)
-    H = np.random.rand(n, K)
-    H = H.T
-    for _iter in range(iterations):
-        ii, jj = X.nonzero()
-        for i, j in zip(*(ii, jj)):
-                if not np.isnan(X[i, j]):
-                    eij = X[i, j] - np.dot(W[i, :], H[:, j])
-                    for k in range(K):
-                        # multiplicative update + L2 regularization
-                        W[i][k] = W[i][k] + alpha * (2 * eij * H[k][j] - beta * W[i][k])
-                        H[k][j] = H[k][j] + alpha * (2 * eij * W[i][k] - beta * H[k][j])
-        tol = 0
-        for i, j in zip(*(ii, jj)):
-                if not np.isnan(X[i, j]):
-                    # Frobenius norm
-                    tol = tol + pow(X[i, j] - np.dot(W[i, :], H[:, j]), 2)
-                    for k in range(K):
-                        tol = tol + (beta / 2) * (pow(W[i][k], 2) + pow(H[k][j], 2))
-        print(f'At iter: {_iter}, tol: {tol}')
-        if tol < 0.001:
-            break
-    return W, H.T
-
+from src.nmf.sgd_nmf import nmf
 
 if __name__ == "__main__":
     cfg = Config()
@@ -74,6 +33,11 @@ if __name__ == "__main__":
     logging.info('\u2B07 Getting Jurbey File...')
     g = read_jurbey_from_minio(message['bucket'], message['jurbey_path'])
     logging.info("\u2705 Done loading Jurbey graph.")
+
+    # create dataset
+    contruct_time_series_traffic_data(g)
+
+    sys.exit(0)
     # populate with max speed
     g = populate_graph_with_max_speed(g)
 
