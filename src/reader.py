@@ -1,5 +1,3 @@
-import sys
-
 from jurbey.jurbey import JURBEY
 from pandas.io.json import json_normalize
 from requests import Session
@@ -102,7 +100,7 @@ def contruct_time_series_traffic_data(g):
         payload['filter']['fields'][0]['value'] = edge[0]
         payload['filter']['fields'][1]['value'] = edge[1]
         response = session.post(
-            url="https://druid.broker.develop.otonomousmobility.com/druid/v2/",
+            url=cfg.DRUID_ENDPOINT,
             json=payload,
             auth=(cfg.LDAP_USERNAME, cfg.LDAP_PASSWORD),
             verify=True,
