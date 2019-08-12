@@ -83,14 +83,26 @@ def _get_traffic_from_postgres(table_name, hour):
     return df
 
 
-def contruct_time_series_traffic_data(g):
+def construct_time_series_traffic_data(g, granularity='hour', from_ts='2019-04-01', to_ts='2019-04-07'):
+    """
+    Contruct timeseries dataset using Druid
+    Args:
+        g (networkx.DiGraph): the target graph
+        granularity (str): the time granularity of the timeseries (refer to Druid query doc)
+        from_ts (str): date in YYYY-mm-dd format
+        to_ts (str): date in YYYY-mm-dd format
+
+    Returns:
+       
+    """
     headers = {
         'Content-type': 'application/json',
     }
     session = Session()
     payload = open('query_segment_timeseries.json', 'r')
     payload = json.load(payload)
-    payload['granularity'] = 'hour'
+    payload['granularity'] = granularity
+    payload['intervals'] = [f"{from_ts}/{to_ts}"]
     g = partition_graph_by_lonlat(g)
     dfs = list()
     batch_size = 0

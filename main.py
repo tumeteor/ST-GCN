@@ -8,7 +8,7 @@ import logging
 import networkx as nx
 from src.config import Config
 from src.reader import populate_graph_with_max_speed, read_jurbey_from_minio, populate_graph_with_fresh_speed, \
-    get_dataframe_from_graph, contruct_time_series_traffic_data
+    get_dataframe_from_graph, construct_time_series_traffic_data
 from src.nmf.fast_nmf import train_nmf_with_dataframe, train_nmf_with_sparse_matrix
 from src.graph_utils import sample_graph_by_nodes
 from src.eval.measures import rmse
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     logging.info("\u2705 Done loading Jurbey graph.")
 
     # create dataset
-    contruct_time_series_traffic_data(g)
+    construct_time_series_traffic_data(g)
 
     sys.exit(0)
     # populate with max speed
