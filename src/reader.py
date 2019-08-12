@@ -125,7 +125,7 @@ def contruct_time_series_traffic_data(g):
             counter += 1
             batch_size = 0
             with open('dataset.csv', 'a') as f:
-                pd.concat(dfs, axis=0).to_csv(f, header=False)
+                pd.concat(dfs, axis=1).transpose().to_csv(f, header=False)
             dfs = list()
 
         batch_size += 1
