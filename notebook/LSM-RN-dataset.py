@@ -132,22 +132,28 @@ for name, idxs in [('tng', tng_idxs), ('val', val_idxs), ('tst', tst_inxs)]:
         dataset._indices()[2][idxs].tolist()
     ])
     v = torch.FloatTensor(dataset._values()[idxs])
-    
-    dataset_split[name] = torch.sparse.FloatTensor(i, v, dataset.shape)
-
-dataset_split
+    # NOTE sparse tensor is not supported yet by the model
+    dataset_split[name] = torch.sparse.FloatTensor(i, v, dataset.shape).to_dense()
 
 # # Let's train model
 
-from src.nmf.lsm_rn import LSM_RN
-
 # +
+from src.nmf.lsm_rn import LSM_RN
 from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks import ModelCheckpoint
 
-model = LSM_RN(TOTAL_T_STEPS, n=3475, k=50, λ=0.5, adj_mat=A, datasets=dataset_split)
+model = LSM_RN(TOTAL_T_STEPS, n=3475, k=50, λ=0.1, adj_mat=A, datasets=dataset_split, batch_size=8)
+checkpoint_callback = ModelCheckpoint(
+    filepath='/path/to/store/weights.ckpt',
+    save_best_only=True,
+    verbose=True,
+    monitor='val_loss',
+    mode='min'
+)
+
 # most basic trainer, uses good defaults
-trainer = Trainer()    
-trainer.fit(model)   
+trainer = Trainer(checkpoint_callback=checkpoint_callback)    
+trainer.fit(model)
 # -
 
 

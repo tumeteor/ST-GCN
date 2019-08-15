@@ -15,6 +15,9 @@ class TensorIterableDataset(IterableDataset):
             end = len(data)
         self.end = end
 
+    def __len__(self):
+        return self.end
+
     def __iter__(self):
         worker_info = get_worker_info()
 
@@ -32,6 +35,3 @@ class TensorIterableDataset(IterableDataset):
             iter_end = min(iter_start + per_worker, self.end)
 
         return iter(self._data[iter_start:iter_end])
-
-    def __len__(self):
-        return self.end
