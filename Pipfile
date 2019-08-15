@@ -17,14 +17,19 @@ dataclasses = "*"
 dask = {extras = ["complete"],version = "*"}
 jsonnet = "*"
 experiment-tracker = "*"
-torch = "==1.1.0"
+torch = "*"
 scikit-learn = "*"
+jupyterlab = "*"
+jupytext = "*"
+pytorch-lightning = "*"
+shapely = "*"
 
 [dev-packages]
 jupyter = "*"
 jupytext = "*"
 jsonnet = "*"
 pyyaml = "*"
+jupyterlab = "*"
 
 [requires]
 python_version = "3.6"
