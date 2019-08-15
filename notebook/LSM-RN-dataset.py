@@ -141,19 +141,23 @@ for name, idxs in [('tng', tng_idxs), ('val', val_idxs), ('tst', tst_inxs)]:
 from src.nmf.lsm_rn import LSM_RN
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
+from test_tube import Experiment
+
 
 model = LSM_RN(TOTAL_T_STEPS, n=3475, k=50, λ=0.1, adj_mat=A, datasets=dataset_split, batch_size=8)
+exp = Experiment(save_dir='lsm_rn_logs')
 checkpoint_callback = ModelCheckpoint(
-    filepath='/path/to/store/weights.ckpt',
+    filepath='lsm_rn.ckpt',
     save_best_only=True,
     verbose=True,
-    monitor='val_loss',
+    monitor='avg_val_mae',
     mode='min'
 )
 
-# most basic trainer, uses good defaults
-trainer = Trainer(checkpoint_callback=checkpoint_callback)    
-trainer.fit(model)
-# -
 
+# most basic trainer, uses good defaults
+trainer = Trainer(experiment=exp, checkpoint_callback=checkpoint_callback)    
+trainer.fit(model)
+#TODO lr decay
+# -
 

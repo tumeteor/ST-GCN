@@ -24,12 +24,12 @@ class LSM_RN(pl.LightningModule):
         self.L = self.get_laplacian(adj_mat)
         self.U = Parameter(torch.Tensor(t_steps, n, k))
         self.B = Parameter(torch.Tensor(k, k))
-        torch.nn.init.normal_(self.U, mean=0, std=0.2)
-        torch.nn.init.normal_(self.B, mean=0, std=0.2)
+        torch.nn.init.uniform_(self.U, 0, 0.2)
+        torch.nn.init.uniform_(self.B, 0, 0.2)
 
     def get_laplacian(self, adj_mat):  # TODO sparse
         # degree matrix
-        degree_mat = np.diag(np.sum(adj_mat, 1))
+        degree_mat = np.diag(np.sum(adj_mat, 0).A1)
         return torch.Tensor(degree_mat - adj_mat)
 
     def forward(self, t):
@@ -42,37 +42,60 @@ class LSM_RN(pl.LightningModule):
         mask = torch.zeros(G.size())
         mask[G != 0] = 1
 
-        fro = torch.norm(mask * (G_hat - G), p="fro", dim=(1, 2))
-        laplacian_term = torch.einsum(
-            "...ii", U_t.transpose(1, 2).matmul(self.L).matmul(U_t)
+        fro = torch.norm(mask * (G_hat - G), p="fro", dim=(1, 2)).mean()
+        laplacian_term = (
+            self.λ
+            * torch.einsum(
+                "...ii", U_t.transpose(1, 2).matmul(self.L).matmul(U_t)
+            ).mean()
         )
 
-        return (fro + self.λ * laplacian_term).mean()
+        return {
+            "fro": fro,
+            "laplacian_term": laplacian_term,
+            "loss": fro + laplacian_term,
+        }
 
     def training_step(self, batch, batch_nb):
         t, G = batch
         G_hat = self.forward(t)
         U_t = self.U[t]
 
-        return {"loss": self.loss(U_t, G_hat, G)}
+        return self.loss(U_t, G_hat, G)
 
     def validation_step(self, batch, batch_nb):
         t, G = batch
         G_hat = self.forward(t)
+        U_t = self.U[t]
 
         mask = torch.zeros(G.size())
         mask[G != 0] = 1
 
         mae = (mask * (G_hat - G)).abs().sum() / mask.sum()
 
-        return {"val_mae": mae}
+        metrics = self.loss(U_t, G_hat, G)
+
+        #  print("gt", G[G != 0][:10])
+        #  print("pred", G_hat[G != 0][:10])
+        return {
+            "val_mae": mae,
+            "val_loss": metrics["loss"],
+            "val_fro": metrics["fro"],
+            "val_laplacian_term": metrics["laplacian_term"],
+        }
 
     def validation_end(self, outputs):
-        avg_mae = sum([o["val_mae"] for o in outputs]) / len(outputs)
-        return {"avg_val_mae": avg_mae}
+        # TODO refactor
+        return {
+            "avg_val_mae": sum([o["val_mae"] for o in outputs]) / len(outputs),
+            "avg_val_loss": sum([o["val_loss"] for o in outputs]) / len(outputs),
+            "avg_val_fro": sum([o["val_fro"] for o in outputs]) / len(outputs),
+            "avg_laplacian_term": sum([o["val_laplacian_term"] for o in outputs])
+            / len(outputs),
+        }
 
     def configure_optimizers(self):
-        return [torch.optim.Adam(self.parameters(), lr=0.02)]
+        return [torch.optim.Adam(self.parameters(), lr=0.0001)]
 
     def _dataloader_from_tensor(self, t):
         return DataLoader(
