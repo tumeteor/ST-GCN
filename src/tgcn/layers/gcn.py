@@ -6,6 +6,7 @@ import torch
 
 
 class GraphConvolution(nn.Module):
+
     """
     Simple GCN layer, similar to https://arxiv.org/abs/1609.02907
     """

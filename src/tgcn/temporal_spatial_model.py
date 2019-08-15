@@ -1,5 +1,4 @@
 from torch.utils.data import DataLoader
-
 from src.tgcn.layers.gcn import GCN
 from src.tgcn.layers.lstm import LSTMs
 import pytorch_lightning as pl
@@ -40,7 +39,6 @@ class TGCN(pl.LightningModule):
     @pl.data_loader
     def test_dataloader(self):
         return self._dataloader_from_tensor(self.datasets["tst"])
-
 
 
 
