@@ -1,55 +1,46 @@
-from tqdm import tqdm
+from torch.utils.data import DataLoader
 
-from src.models.tgcn.layers.gcn import GCN
-from src.models.tgcn.layers.lstm import LSTMs
-import argparse
+from src.tgcn.layers.gcn import GCN
+from src.tgcn.layers.lstm import LSTMs
+import pytorch_lightning as pl
 import torch
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--gcn_in', type=int, default=12)
-parser.add_argument('--gcn_hid', type=int, default=20)
-parser.add_argument('--gcn_out', type=int, default=20)
-parser.add_argument('--lstm_hid', type=int, default=32)
-parser.add_argument('--lstm_layers', type=int, default=2)
-parser.add_argument('--lstm_drop', type=int, default=0)
-parser.add_argument('--a_in', type=int, default=10)
-parser.add_argument('--output_pred', type=int, default=1)
-parser.add_argument('--epoch', type=int, default=1000)
-parser.add_argument('--drop', type=float, default=0.5)
-parser.add_argument('--lr', type=float, default=0.01)
 
+class TGCN(pl.LightningModule):
+    def __init__(self, gcn_in, gcn_hid, gcn_out, lstm_hid, output_pred, lstm_layers, lstm_drop, batch_size=8, lr=0.0001):
+        self.net = GCN(gcn_in, gcn_hid, gcn_out)
+        self.model = LSTMs(gcn_out, lstm_hid, output_pred, lstm_layers, lstm_drop)
+        self.batch_size = batch_size
+        self.lr = lr
 
-args = parser.parse_args()
-net = GCN(args.gcn_in, args.gcn_hid, args.gcn_out)
-model = LSTMs(args.gcn_out, args.lstm_hid, args.output_pred, args.lstm_layers, args.lstm_drop)
+    def forward(self, *args, **kwargs):
+        pass
 
-parameters = list(net.parameters()) + list(model.parameters())
-loss_fn = torch.nn.MSELoss(size_average=False)
-optimizer = torch.optim.Adam(parameters, lr=args.lr)
+    def configure_optimizers(self):
+        return [torch.optim.Adam(self.parameters(), lr=self.lr)]
 
-X_train = []
-Adj_train = []
-y_train = []
+    def training_step(self, *args, **kwargs):
+        pass
 
-for epoch in tqdm(range(args.epoch)):
-    net.train()
-    model.train()
+    def _dataloader_from_tensor(self, t):
+        return DataLoader(
+            torch.utils.data.TensorDataset(torch.arange(0, len(t)), t),
+            shuffle=True,
+            batch_size=self.batch_size,
+        )
 
-    cell = net(X_train, Adj_train)
-    y_pred = model(cell)
+    @pl.data_loader
+    def tng_dataloader(self):
+        return self._dataloader_from_tensor(self.datasets["tng"])
 
-    loss = loss_fn(y_pred, y_train)
-    if epoch % 100 == 0:
-        print("Epoch ", epoch, "MSE: ", loss.item())
+    @pl.data_loader
+    def val_dataloader(self):
+        return self._dataloader_from_tensor(self.datasets["val"])
 
-    # Zero out gradient, else they will accumulate between epochs
-    optimizer.zero_grad()
+    @pl.data_loader
+    def test_dataloader(self):
+        return self._dataloader_from_tensor(self.datasets["tst"])
 
-    # Backward pass
-    loss.backward()
-
-    # Update parameters
-    optimizer.step()
 
 
 

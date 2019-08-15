@@ -1,12 +1,11 @@
 from torch.nn.parameter import Parameter
-from torch.nn.modules.module import Module
 import torch.nn as nn
 import torch.nn.functional as F
 import math
 import torch
 
 
-class GraphConvolution(Module):
+class GraphConvolution(nn.Module):
     """
     Simple GCN layer, similar to https://arxiv.org/abs/1609.02907
     """
