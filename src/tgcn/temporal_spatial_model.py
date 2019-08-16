@@ -6,14 +6,16 @@ import torch
 
 
 class TGCN(pl.LightningModule):
-    def __init__(self, gcn_in, gcn_hid, gcn_out, lstm_hid, output_pred, lstm_layers, lstm_drop, batch_size=8, lr=0.0001):
+    def __init__(self, gcn_in, gcn_hid, gcn_out, ex_in, lstm_hid, output_pred, lstm_layers, lstm_drop, batch_size=8, lr=0.0001):
         self.net = GCN(gcn_in, gcn_hid, gcn_out)
-        self.model = LSTMs(gcn_out, lstm_hid, output_pred, lstm_layers, lstm_drop)
+        self.model = LSTMs(gcn_out + ex_in, lstm_hid, output_pred, lstm_layers, lstm_drop)
         self.batch_size = batch_size
         self.lr = lr
 
-    def forward(self, *args, **kwargs):
-        pass
+    def forward(self, adj, ex_emb):
+        gcn_emb = self.net(adj)
+        _, x = self.model(torch.cat((gcn_emb, ex_emb), 0))
+        return x
 
     def configure_optimizers(self):
         return [torch.optim.Adam(self.parameters(), lr=self.lr)]
