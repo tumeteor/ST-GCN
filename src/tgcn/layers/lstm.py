@@ -30,5 +30,8 @@ class LSTMs(pl.LightningModule):
 
     def training_step(self, batch, batch_nb):
         x, y = batch[:, :, :29], batch[:, :, 29:30]
+        y = y.view(1, -1)
         _, y_hat = self.forward(x)
+        print(y.shape)
+        print(y_hat.shape)
         return {'loss': F.mse_loss(y_hat, y)}
