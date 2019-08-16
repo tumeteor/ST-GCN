@@ -95,7 +95,7 @@ class LSM_RN(pl.LightningModule):
         }
 
     def configure_optimizers(self):
-        return [torch.optim.Adam(self.parameters(), lr=0.0001)]
+        return [torch.optim.Adam(self.parameters(), lr=0.0015)]
 
     def _dataloader_from_tensor(self, t):
         return DataLoader(
