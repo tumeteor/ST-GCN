@@ -7,7 +7,7 @@ import torch
 
 class GraphConvolution(nn.Module):
 
-    def __init__(self, in_features, out_features, bias=True):
+    def __init__(self, in_features, out_features=32, bias=True):
         super(GraphConvolution, self).__init__()
         self.in_features = in_features
         self.out_features = out_features

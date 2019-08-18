@@ -1,16 +1,16 @@
 from torch.utils.data import DataLoader
-from src.tgcn.layers.gcn import GCN
-from src.tgcn.layers.lstm import LSTMs
+from torch import optim
 import pytorch_lightning as pl
 import torch
+from src.tgcn.layers.gcn import GCN
+from src.tgcn.layers.lstm import LSTMs
 
 
 class TGCN(pl.LightningModule):
-    def __init__(self, gcn_in, gcn_hid, gcn_out, ex_in, lstm_hid, output_pred, lstm_layers, lstm_drop, batch_size=8, lr=0.0001):
+    def __init__(self, gcn_in, gcn_hid, gcn_out, ex_in, lstm_hid, datasets):
         self.net = GCN(gcn_in, gcn_hid, gcn_out)
-        self.model = LSTMs(gcn_out + ex_in, lstm_hid, output_pred, lstm_layers, lstm_drop)
-        self.batch_size = batch_size
-        self.lr = lr
+        self.model = LSTMs(gcn_out + ex_in, lstm_hid)
+        self.datasets = datasets
 
     def forward(self, adj, ex_emb):
         gcn_emb = self.net(adj)
@@ -18,7 +18,7 @@ class TGCN(pl.LightningModule):
         return x
 
     def configure_optimizers(self):
-        return [torch.optim.Adam(self.parameters(), lr=self.lr)]
+        return optim.Adam(self.parameters(), lr=1e-4, weight_decay=1e-5)
 
     def training_step(self, *args, **kwargs):
         pass
