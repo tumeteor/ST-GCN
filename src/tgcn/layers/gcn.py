@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 import torch
-
+torch.manual_seed(0)
 
 class GraphConvolution(nn.Module):
 
@@ -45,16 +45,17 @@ class GCN(nn.Module):
         hidden_size (int): number of hidden sizes
         out_feats (int): number of output features
     """
-    def __init__(self, in_feats, hidden_size, out_feats):
+    def __init__(self, in_feats, hidden_size=32, out_feats=8, dropout=0.5):
         super(GCN, self).__init__()
 
         self.gc1 = GraphConvolution(in_feats, hidden_size)
         self.gc2 = GraphConvolution(hidden_size, out_feats)
         self.linear = nn.Linear(hidden_size, out_feats)
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, adj):
         x = F.relu(self.gc1(x, adj))
+        x = F.relu(self.gc2(x, adj))
         x = F.dropout(x, training=self.training)
         return self.linear(x)
 
