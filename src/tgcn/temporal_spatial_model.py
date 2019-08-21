@@ -15,7 +15,7 @@ torch.manual_seed(0)
 
 class TGCN(pl.LightningModule):
     def __init__(self, input_dim, hidden_dim, layer_dim, output_dim, adj, adj_norm=False,
-                 datasets=None, dropout=0.5, indices=None):
+                 datasets=None, dropout=0.5, mask=None):
         super(TGCN, self).__init__()
 
         # Hidden dimensions
@@ -31,7 +31,7 @@ class TGCN(pl.LightningModule):
         self.adj = self._transform_adj(adj) if adj_norm else adj
         self.dropout = nn.Dropout(dropout)
 
-        self.indices = torch.LongTensor(indices)
+        self.mask = mask
 
     def _transform_adj(self, adj):
         # build symmetric adjacency matrix
@@ -39,6 +39,7 @@ class TGCN(pl.LightningModule):
 
         adj = self._normalize(adj + sp.eye(adj.shape[0]))
         adj = sparse_scipy2torch(adj)
+        return adj
 
     def _normalize(self, mx):
         """Row-normalize sparse matrix"""
@@ -77,37 +78,42 @@ class TGCN(pl.LightningModule):
         return out
 
     def configure_optimizers(self):
-        return optim.Adam(self.parameters(), lr=1e-4, weight_decay=1e-5)
+        return optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-5)
 
     def training_step(self, batch, batch_nb):
         x, y = batch[:, :, :, :9], batch[:, :, 0, 9:]
+        y = y.squeeze(dim=0)
+        y_hat = self.forward(x).squeeze(dim=0)
 
-        y_hat = self.forward(x).squeeze()
+        _mask = self.mask['train'][batch_nb, :, 0, 9:]
+        y_hat = y_hat.masked_select(_mask)
+        y = y.masked_select(_mask)
 
-        return {'loss': F.mse_loss(torch.index_select(y_hat, dim=0, index=self.indices),
-                                   torch.index_select(y, dim=0, index=self.indices).float())}
+        return {'loss': F.mse_loss(y_hat, y.float())}
 
     @pl.data_loader
     def tng_dataloader(self):
-        return DataLoader(self.datasets['train'], batch_size=1, shuffle=True)
+        return DataLoader(self.datasets['train'], batch_size=1, shuffle=False)
 
     @pl.data_loader
     def val_dataloader(self):
-        return DataLoader(self.datasets['valid'], batch_size=1, shuffle=True)
+        return DataLoader(self.datasets['valid'], batch_size=1, shuffle=False)
 
     @pl.data_loader
     def test_dataloader(self):
-        return DataLoader(self.datasets['test'], batch_size=1, shuffle=True)
+        return DataLoader(self.datasets['test'], batch_size=1, shuffle=False)
 
     def validation_step(self, batch, batch_nb):
+        # batch shape: torch.Size([1, 6163, 26, 10])
         x, y = batch[:, :, :, :9], batch[:, :, 0, 9:]
         y = y.squeeze(dim=0)
-        print(f"y: {y.shape}")
-        y_hat = self.forward(x).squeeze()
-        print(f"y_hat: {y_hat.shape}")
-        print(self.indices)
-        return {'val_loss': F.mse_loss(torch.index_select(y_hat, dim=0, index=self.indices),
-                                       torch.index_select(y, dim=0, index=self.indices).float())}
+
+        y_hat = self.forward(x).squeeze(dim=0)
+        _mask = self.mask['valid'][batch_nb, :, 0, 9:]
+
+        y_hat = y_hat.masked_select(_mask)
+        y = y.masked_select(_mask)
+        return {'val_loss': F.mse_loss(y_hat, y.float())}
 
     def validation_end(self, outputs):
         # OPTIONAL
