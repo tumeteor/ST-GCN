@@ -1,5 +1,5 @@
 from torch.autograd import Variable
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 from torch import optim
 from torch.nn import functional as F
 from torch import nn
@@ -15,7 +15,7 @@ torch.manual_seed(0)
 
 class TGCN(pl.LightningModule):
     def __init__(self, input_dim, hidden_dim, layer_dim, output_dim, adj, adj_norm=False,
-                 datasets=None, dropout=0.5, mask=None):
+                 datasets=None, targets=None, dropout=0.5, mask=None):
         super(TGCN, self).__init__()
 
         # Hidden dimensions
@@ -30,6 +30,7 @@ class TGCN(pl.LightningModule):
         self.datasets = datasets
         self.adj = self._transform_adj(adj) if adj_norm else adj
         self.dropout = nn.Dropout(dropout)
+        self.targets = targets
 
         self.mask = mask
 
@@ -81,11 +82,11 @@ class TGCN(pl.LightningModule):
         return optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-5)
 
     def training_step(self, batch, batch_nb):
-        x, y = batch[:, :, :, :9], batch[:, :, 0, 9:]
+        x, y = batch
         y = y.squeeze(dim=0)
         y_hat = self.forward(x).squeeze(dim=0)
 
-        _mask = self.mask['train'][batch_nb, :, 0, 9:]
+        _mask = self.mask['train'][batch_nb, :, :]
         y_hat = y_hat.masked_select(_mask)
         y = y.masked_select(_mask)
 
@@ -93,29 +94,32 @@ class TGCN(pl.LightningModule):
 
     @pl.data_loader
     def tng_dataloader(self):
-        return DataLoader(self.datasets['train'], batch_size=1, shuffle=False)
+        return DataLoader(TensorDataset(self.datasets['train'], self.targets['train']), batch_size=1, shuffle=False)
 
     @pl.data_loader
     def val_dataloader(self):
-        return DataLoader(self.datasets['valid'], batch_size=1, shuffle=False)
+        return DataLoader(TensorDataset(self.datasets['valid'], self.targets['valid']), batch_size=1, shuffle=False)
 
     @pl.data_loader
     def test_dataloader(self):
-        return DataLoader(self.datasets['test'], batch_size=1, shuffle=False)
+        return DataLoader(TensorDataset(self.datasets['test'], self.targets['test']), batch_size=1, shuffle=False)
 
     def validation_step(self, batch, batch_nb):
         # batch shape: torch.Size([1, 6163, 26, 10])
-        x, y = batch[:, :, :, :9], batch[:, :, 0, 9:]
+        x, y = batch
         y = y.squeeze(dim=0)
 
         y_hat = self.forward(x).squeeze(dim=0)
-        _mask = self.mask['valid'][batch_nb, :, 0, 9:]
+        _mask = self.mask['valid'][batch_nb, :, :]
 
         y_hat = y_hat.masked_select(_mask)
         y = y.masked_select(_mask)
-        return {'val_loss': F.mse_loss(y_hat, y.float())}
+
+        print(f"y_hat: {y_hat}")
+        mae = (y_hat - y.float()).abs().sum() / _mask.sum()
+        return {'val_mae': mae}
 
     def validation_end(self, outputs):
         # OPTIONAL
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        return {'avg_val_loss': avg_loss}
+        avg_loss = torch.stack([x['val_mae'] for x in outputs]).mean()
+        return {'avg_val_mae': avg_loss}

@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 
 
 class TimeBlock(nn.Module):
@@ -14,7 +14,7 @@ class TimeBlock(nn.Module):
     a graph in isolation.
     """
 
-    def __init__(self, in_channels, out_channels, kernel_size=3):
+    def __init__(self, in_channels, out_channels, kernel_size=1):
         """
         :param in_channels: Number of input features at each node in each time
         step.
@@ -84,7 +84,7 @@ class STGCNBlock(nn.Module):
         num_timesteps_out, num_features=out_channels).
         """
         t = self.temporal1(X)
-        lfs = torch.einsum("ij,jklm->kilm", [A_hat, t.permute(1, 0, 2, 3)])
+        lfs = torch.einsum("ij,jklm->kilm", [A_hat.to_dense(), t.permute(1, 0, 2, 3)])
         # t2 = F.relu(torch.einsum("ijkl,lp->ijkp", [lfs, self.Theta1]))
         t2 = F.relu(torch.matmul(lfs, self.Theta1))
         t3 = self.temporal2(t2)
@@ -98,8 +98,8 @@ class STGCN(pl.LightningModule):
     num_features).
     """
 
-    def __init__(self, num_nodes, num_features, num_timesteps_input,
-                 num_timesteps_output):
+    def __init__(self, num_nodes=6163, num_features=29, num_timesteps_input=9,
+                 num_timesteps_output=1, adj=None, datasets=None, targets=None, mask=None):
         """
         :param num_nodes: Number of nodes in the graph.
         :param num_features: Number of features at each node in each time step.
@@ -114,8 +114,14 @@ class STGCN(pl.LightningModule):
         self.block2 = STGCNBlock(in_channels=64, out_channels=64,
                                  spatial_channels=16, num_nodes=num_nodes)
         self.last_temporal = TimeBlock(in_channels=64, out_channels=64)
-        self.fully = nn.Linear((num_timesteps_input - 2 * 5) * 64,
+        self.fully = nn.Linear(num_timesteps_input * 64,
                                num_timesteps_output)
+
+        self.datasets = datasets
+        self.targets = targets
+        self.mask = mask
+
+        self.adj = adj
 
     def forward(self, A_hat, X):
         """
@@ -126,6 +132,7 @@ class STGCN(pl.LightningModule):
         out1 = self.block1(X, A_hat)
         out2 = self.block2(out1, A_hat)
         out3 = self.last_temporal(out2)
+        print(f"Out3 shape: {out3.shape}")
         out4 = self.fully(out3.reshape((out3.shape[0], out3.shape[1], -1)))
         return out4
 
@@ -133,13 +140,52 @@ class STGCN(pl.LightningModule):
         return optim.Adam(self.parameters(), lr=1e-4, weight_decay=1e-5)
 
     def training_step(self, batch, batch_nb):
-        x, y = batch[:, :, :, :9], batch[:, :, :, 9:]
-        y = torch.squeeze(y, dim=2)
-        _, y_hat = self.forward(x)
+        # (batch_size, num_nodes, num_input_time_steps, num_features)
+        # [batch_size, seq_length, input_dim(features)] 1, 6163, 9, 27
+        x, y = batch
+        x = x.permute(0, 1, 3, 2).float()
 
-        return {'loss': F.mse_loss(y_hat, y)}
+        y = y.squeeze(dim=0)
+        y_hat = self.forward(A_hat=self.adj, X=x).squeeze(dim=0)
+
+        _mask = self.mask['train'][batch_nb, :, :]
+        y_hat = y_hat.masked_select(_mask)
+        y = y.masked_select(_mask)
+
+        return {'loss': F.mse_loss(y_hat, y.float())}
 
     @pl.data_loader
     def tng_dataloader(self):
-        return DataLoader(self.datasets['train'], batch_size=10, shuffle=True)
+        return DataLoader(TensorDataset(self.datasets['train'], self.targets['train']), batch_size=1, shuffle=False)
+
+    @pl.data_loader
+    def val_dataloader(self):
+        return DataLoader(TensorDataset(self.datasets['valid'], self.targets['valid']), batch_size=1, shuffle=False)
+
+    @pl.data_loader
+    def test_dataloader(self):
+        return DataLoader(TensorDataset(self.datasets['test'], self.targets['test']), batch_size=1, shuffle=False)
+
+    def validation_step(self, batch, batch_nb):
+        # batch shape: torch.Size([1, 6163, 26, 10])
+        # [batch_size, seq_length, input_dim(features)] 1, 6163, 9, 27
+        x, y = batch
+        x = x.permute(0, 1, 3, 2).float()
+
+        y = y.squeeze(dim=0)
+
+        y_hat = self.forward(A_hat=self.adj, X=x).squeeze(dim=0)
+        _mask = self.mask['valid'][batch_nb, :, :]
+
+        y_hat = y_hat.masked_select(_mask)
+        y = y.masked_select(_mask)
+
+        print(f"y_hat: {y_hat}")
+        mae = (y_hat - y.float()).abs().sum() / _mask.sum()
+        return {'val_mae': mae}
+
+    def validation_end(self, outputs):
+        # OPTIONAL
+        avg_loss = torch.stack([x['val_mae'] for x in outputs]).mean()
+        return {'avg_val_mae': avg_loss}
 
