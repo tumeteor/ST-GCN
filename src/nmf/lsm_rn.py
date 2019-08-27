@@ -7,6 +7,7 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 from src.graph_utils import partition_graph_by_lonlat
+from src.utils.memory import mem_report
 
 torch.manual_seed(0)
 
@@ -33,6 +34,7 @@ class LSM_RN(pl.LightningModule):
         return torch.Tensor(degree_mat - adj_mat)
 
     def forward(self, t):
+        mem_report()
         U_t = self.U[t]
         # chain_matmul does not support batched
         return U_t.matmul(self.B).matmul(U_t.transpose(1, 2))
