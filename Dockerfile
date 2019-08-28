@@ -20,7 +20,7 @@ COPY requirements.txt requirements.txt
 #COPY Pipfile Pipfile
 #COPY Pipfile.lock Pipfile.lock
 #RUN python3 -m pipenv install --verbose --deploy --system --sequential
-RUN python3 -m pip install -r requirements.txt --extra-index-url https://$USERNAME:$PASSWORDi@nexus.mobilityservices.io/repository/pypi/simple
+RUN python3 -m pip install -r requirements.txt --extra-index-url https://$USERNAME:$PASSWORD@nexus.mobilityservices.io/repository/pypi/simple
 
 ADD . /
 
