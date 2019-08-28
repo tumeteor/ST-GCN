@@ -22,7 +22,6 @@ scikit-learn = "*"
 jupyterlab = "*"
 jupytext = "*"
 pytorch-lightning = "*"
-shapely = "*"
 
 [dev-packages]
 jupyter = "*"
