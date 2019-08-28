@@ -1,0 +1,16 @@
+pandas
+jurbey==1.2.89
+minio
+networkx
+pytest
+psycopg2-binary
+modeldb
+python-json-logger
+mock
+dataclasses
+dask
+torch
+scikit-learn
+jupyterlab
+jupytext
+pytorch-lightning
