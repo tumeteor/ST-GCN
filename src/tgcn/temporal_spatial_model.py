@@ -66,12 +66,14 @@ class TGCN(pl.LightningModule):
 
         outs = []
 
-        cn = c0[0, :, :]
-        hn = h0[0, :, :]
-        x = torch.squeeze(x, dim=0)
-        for seq in range(x.size(2)):
-            hn, cn = self.gc_lstm(x=x[:, :, seq].float(), hx=hn, cx=cn)
-            outs.append(hn)
+        for i in range(self.layer_dim):
+            cn = c0[i, :, :]
+            hn = h0[i, :, :]
+            x = torch.squeeze(x, dim=0)
+            for seq in range(x.size(2)):
+                hn, cn = self.gc_lstm(x=x[:, :, seq].float(), hx=hn, cx=cn)
+
+                outs.append(hn)
 
         out = outs[-1].squeeze()
         out = self.fc(out)

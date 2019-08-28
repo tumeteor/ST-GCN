@@ -5,7 +5,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
+import numpy as np
+import scipy.sparse as sp
+
 from torch.utils.data import DataLoader, TensorDataset
+
+from src.utils.sparse import sparse_scipy2torch
 
 
 class TimeBlock(nn.Module):
@@ -99,7 +104,7 @@ class STGCN(pl.LightningModule):
     """
 
     def __init__(self, num_nodes=6163, num_features=29, num_timesteps_input=9,
-                 num_timesteps_output=1, adj=None, datasets=None, targets=None, mask=None):
+                 num_timesteps_output=1, adj=None, datasets=None, targets=None, mask=None, normalized=False):
         """
         :param num_nodes: Number of nodes in the graph.
         :param num_features: Number of features at each node in each time step.
@@ -121,7 +126,24 @@ class STGCN(pl.LightningModule):
         self.targets = targets
         self.mask = mask
 
-        self.adj = adj
+        self.adj = self._transform_adj(adj) if normalized else adj
+
+    def _transform_adj(self, adj):
+        # build symmetric adjacency matrix
+        adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
+
+        adj = self._normalize(adj + sp.eye(adj.shape[0]))
+        adj = sparse_scipy2torch(adj)
+        return adj
+
+    def _normalize(self, mx):
+        """Row-normalize sparse matrix"""
+        rowsum = np.array(mx.sum(1))
+        r_inv = np.power(rowsum, -1).flatten()
+        r_inv[np.isinf(r_inv)] = 0.
+        r_mat_inv = sp.diags(r_inv)
+        mx = r_mat_inv.dot(mx)
+        return mx
 
     def forward(self, A_hat, X):
         """
