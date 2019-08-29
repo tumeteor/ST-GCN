@@ -69,11 +69,9 @@ class GCNLSTMModel(pl.LightningModule):
         metrics = {"loss": mae}
         if validate:
             speed_hat = self.speed_transform.inverse_transform(
-                speed_hat.detach().numpy().reshape(-1, 1)
+                speed_hat.detach().numpy()
             )
-            speed = self.speed_transform.inverse_transform(
-                speed.detach().numpy().reshape(-1, 1)
-            )
+            speed = self.speed_transform.inverse_transform(speed.detach().numpy())
             mask = mask.detach().numpy()
             mae = np.abs(mask * (speed_hat - speed)).sum() / mask.sum()
             metrics["mae"] = mae
