@@ -19,6 +19,8 @@ class GCNLSTMModel(pl.LightningModule):
         num_layers,
         adj_normalized,
         ts_dataset,
+        speed_transform,
+        timesteps,
         batch_size=8,
     ):
         super().__init__()
@@ -26,7 +28,8 @@ class GCNLSTMModel(pl.LightningModule):
         # unsqueeze to batch and time for further broadcasting
         size = len(ts_dataset)
         tng_size = int(0.7 * size)
-        tst_size = int(0.2 * size)
+        tst_size = int(0.1 * size)
+        self.speed_transform = speed_transform
         self.ts_tng_dataset = Subset(ts_dataset, list(range(0, tng_size)))
         self.ts_val_dataset = Subset(ts_dataset, list(range(tng_size, size - tst_size)))
         self.ts_tst_dataset = Subset(ts_dataset, list(range(size - tst_size, size)))
@@ -35,27 +38,53 @@ class GCNLSTMModel(pl.LightningModule):
         self.A = adj_normalized
         self.lstm = GCN_LSTM(input_size, hidden_size, num_layers, self.A)
 
-        TIME_STEPS = 9
-        self.decoder = nn.Conv2d(TIME_STEPS, 1, kernel_size=(1, hidden_size))
+        self.decoder = nn.Sequential(
+            nn.Conv2d(timesteps, 1, kernel_size=(1, hidden_size)),
+            #  nn.Conv2d(timesteps, timesteps // 2, kernel_size=(1, hidden_size)),
+            #  nn.BatchNorm2d(timesteps // 2),
+            #  nn.Sigmoid(),
+            #  nn.Conv2d(timesteps // 2, 1, kernel_size=(1, 1)),
+        )
+
+        self.opt = torch.optim.Adam(self.parameters(), lr=0.01, weight_decay=0.015)
+        self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            self.opt, patience=3, verbose=True
+        )
 
     def normalize_adj(self, adj_mat):
         # TODO
         raise NotImplemented
 
     def forward(self, input_seq):
-        return self.decoder(self.lstm(input_seq))
+        embedding = self.lstm(input_seq)
+        #  print(embedding)
+        return self.decoder(embedding)
 
-    def loss(self, speed, mask, speed_hat):
+    def loss(self, speed, mask, speed_hat, validate=False):
         speed = speed.squeeze()
         mask = mask.squeeze()
         speed_hat = speed_hat.squeeze()
-        fro = torch.norm(mask * (speed_hat - speed), p="fro", dim=(1)).mean()
-        return {"loss": fro}
+        #  fro = torch.norm(mask * (speed_hat - speed), p="fro", dim=(1)).mean()
+        mae = (mask * (speed_hat - speed)).abs().sum() / mask.sum()
+        metrics = {"loss": mae}
+        if validate:
+            speed_hat = self.speed_transform.inverse_transform(
+                speed_hat.detach().numpy().reshape(-1, 1)
+            )
+            speed = self.speed_transform.inverse_transform(
+                speed.detach().numpy().reshape(-1, 1)
+            )
+            mask = mask.detach().numpy()
+            mae = np.abs(mask * (speed_hat - speed)).sum() / mask.sum()
+            metrics["mae"] = mae
 
-    def training_step(self, batch, batch_nb):
+        return metrics
+
+    def training_step(self, batch, batch_nb, validate=False):
         # we use last timestep as the target
         speed, mask, static = batch
 
+        # it's batch x edge x time x features at this point
         target_speed = speed[:, :, -1].unsqueeze(3)
         target_mask = mask[:, :, -1].unsqueeze(3)
         # TODO static does not change, no need to recompute
@@ -70,22 +99,22 @@ class GCNLSTMModel(pl.LightningModule):
 
         speed_hat = self.forward(input)
 
-        return self.loss(target_speed, target_mask, speed_hat)
+        return self.loss(target_speed, target_mask, speed_hat, validate)
 
     def validation_step(self, batch, batch_nb):
-        # TODO add more metrics
-        return self.training_step(batch, batch_nb)
+        return self.training_step(batch, batch_nb, True)
 
     def validation_end(self, outputs):
         # TODO refactor
+        avg_val_loss = sum([o["loss"] for o in outputs]) / len(outputs)
+        self.lr_scheduler.step(avg_val_loss)
         return {
-            #  "avg_val_mae": sum([o["val_mae"] for o in outputs]) / len(outputs),
-            "avg_val_loss": sum([o["loss"] for o in outputs])
-            / len(outputs)
+            "avg_val_loss": avg_val_loss,
+            "avg_val_mae": sum([o["mae"] for o in outputs]) / len(outputs),
         }
 
     def configure_optimizers(self):
-        return [torch.optim.Adam(self.parameters(), lr=0.0015)]
+        return [self.opt]
 
     @pl.data_loader
     def tng_dataloader(self):

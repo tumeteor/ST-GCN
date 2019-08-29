@@ -29,19 +29,19 @@ class GCN_LSTM(Module):
         h_states = []
         outputs = []
 
-        for step, x in enumerate(input):
-            for cell_idx, cell in enumerate(self._cells):
-                if step == 0:
-                    h, c = self._cells[cell_idx].init_hidden(
+        for ts, x in enumerate(input):
+            for layer_idx, cell in enumerate(self._cells):
+                if ts == 0:
+                    h, c = self._cells[layer_idx].init_hidden(
                         batch_size, edge_cnt, input.device
                     )
                     h_states.append(h)
                     c_states.append(c)
 
                 # NOTE c and h are coming from the previous time stamp, but we iterate over cells
-                h, c = cell(x, h_states[cell_idx], c_states[cell_idx])
-                h_states[cell_idx] = h
-                c_states[cell_idx] = c
+                h, c = cell(x, h_states[layer_idx], c_states[layer_idx])
+                h_states[layer_idx] = h
+                c_states[layer_idx] = c
                 # NOTE hidden state of previous LSTM is passed as input to the next one
                 x = h
 

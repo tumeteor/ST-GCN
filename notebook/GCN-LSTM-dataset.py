@@ -59,11 +59,16 @@ df["highway"], df["surface"], df["roadClass"], df["maxspeed"], df["lines"] = zip
 
 df.head()
 
-df_dummies = df_dummies = pandas.get_dummies(df, columns=["highway", "surface", "roadClass", "maxspeed", "lines"], dummy_na=True)
+df_dummies = pandas.get_dummies(df, columns=["surface", "maxspeed"], dummy_na=True)
+df_dummies = pandas.get_dummies(df_dummies, columns=["highway", "roadClass", "lines"], dummy_na=False)
 
 df_dummies.head()
 
 df_unique = df_dummies.drop_duplicates()
+
+df_unique.head()
+
+df_preprocessed = df_unique
 
 # ## Let's now make an adjecancy matrix, that matches the order in our dataframe
 
@@ -95,7 +100,7 @@ def normalize(mx):
 # +
 L = nx.line_graph(nx.DiGraph(g_partition))
 
-nodelist = [tuple(x) for x in df_unique[['from_node','to_node']].values]
+nodelist = [tuple(x) for x in df_preprocessed[['from_node','to_node']].values]
 
 # +
 adj = nx.to_scipy_sparse_matrix(L, format="coo", nodelist=nodelist)
@@ -120,7 +125,6 @@ static_features = ['highway_access_ramp',
  'highway_tertiary',
  'highway_tertiary_link',
  'highway_unclassified',
- 'highway_nan',
  'surface_asphalt',
  'surface_cobblestone',
  'surface_cobblestone:flattened',
@@ -134,7 +138,6 @@ static_features = ['highway_access_ramp',
  'roadClass_DirtRoad',
  'roadClass_LocalRoad',
  'roadClass_MajorRoad',
- 'roadClass_nan',
  'maxspeed_10',
  'maxspeed_20',
  'maxspeed_30',
@@ -145,25 +148,42 @@ static_features = ['highway_access_ramp',
  'lines_2',
  'lines_3',
  'lines_4',
- 'lines_5',
- 'lines_nan']
+ 'lines_5'
+]
 
 len(static_features)
 
-mask_df = df_unique.notna()
-static_df = df_unique[static_features]
-speed_df = df_unique[map(str, list(range(TOTAL_T_STEPS)))]
+SPEED_COLUMNS = list(map(str, range(TOTAL_T_STEPS)))
+
+mask_df = df_preprocessed.notna()
+static_df = df_preprocessed[static_features]
+
+# +
+# Speed preprocessing
+from sklearn.preprocessing import FunctionTransformer, RobustScaler
+from sklearn.pipeline import Pipeline
+import pandas as pd
+
+speed_df = df_preprocessed[SPEED_COLUMNS]
+speed_df = speed_df.fillna(speed_df.mean())
+speed_pipeline = Pipeline([
+    #('log', FunctionTransformer(func=np.expm1, inverse_func=np.expm1, validate=True))
+    ('scaler', RobustScaler())
+])
+speed_pipeline.fit(speed_df.values.flatten().reshape(-1, 1))
+speed_df = pd.DataFrame(speed_pipeline.transform(speed_df.values), index=speed_df.index, columns=speed_df.columns)
+# -
 
 mask_df.head()
 
 
 # +
 import torch
+WINDOW = 10
 
-def build_sliding_speed_dataset(speed_df, mask_df, window=10):
+def build_sliding_speed_dataset(speed_df, mask_df, window=WINDOW):
     speed = []
     mask = []
-    speed_df = speed_df.fillna(speed_df.mean())
     for i in range(window, TOTAL_T_STEPS + 1):
         columns = list(map(str, range(i - window, i)))
         speed.append(torch.Tensor(speed_df[columns].values))
@@ -176,11 +196,11 @@ def build_sliding_speed_dataset(speed_df, mask_df, window=10):
 
 speed, mask = build_sliding_speed_dataset(speed_df, mask_df)
 speed_seq = speed.unsqueeze(3)
-mask_seq = speed.unsqueeze(3)
+mask_seq = mask.unsqueeze(3)
 print(mask_seq.shape)
 print(speed_seq.shape)
 
-static = torch.Tensor(static_df.values)
+static = torch.Tensor(static_df.values) - 0.5
 static_seq = static.unsqueeze(0)
 static_seq = static_seq.unsqueeze(2)
 static_seq = static_seq.expand([speed_seq.shape[0], -1, speed_seq.shape[2], -1])
@@ -197,7 +217,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from test_tube import Experiment
 from src.gcn_lstm.gcn_lstm_model import GCNLSTMModel 
 
-model = GCNLSTMModel(41, 50, 2, adj_dense, ts_dataset, batch_size=8)
+model = GCNLSTMModel(38, 6, 3, adj_dense, ts_dataset, speed_transform=speed_pipeline, timesteps=WINDOW - 1, batch_size=32)
 exp = Experiment(save_dir='gcnlstm_logs')
 checkpoint_callback = ModelCheckpoint(
     filepath='gcnlstm.ckpt',
@@ -208,7 +228,8 @@ checkpoint_callback = ModelCheckpoint(
 )
 
 # most basic trainer, uses good defaults
-trainer = Trainer(experiment=exp, checkpoint_callback=checkpoint_callback)    
+trainer = Trainer(experiment=exp, checkpoint_callback=checkpoint_callback)  
+#trainer = Trainer(experiment=exp)    
 trainer.fit(model)
 #TODO lr decay
 # -
