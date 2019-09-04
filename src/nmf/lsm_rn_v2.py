@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
+from torch.utils.data.dataset import Dataset
 
 torch.manual_seed(0)
 
@@ -130,3 +131,18 @@ class LSM_RN(pl.LightningModule):
     @pl.data_loader
     def test_dataloader(self):
         return self._dataloader_from_tensor(self.datasets["tst"])
+
+
+class SparseTensorDataset(Dataset):
+    def __init__(self, *tensors):
+        assert all(tensors[0].size(0) == tensor.size(0) for tensor in tensors)
+        self.tensors = tensors
+
+    def __getitem__(self, index):
+        # TODO
+        # make slicing possible
+        raise NotImplementedError
+
+    def __len__(self):
+        return self.tensors[0].size(0)
+
