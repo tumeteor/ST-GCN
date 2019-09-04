@@ -1,7 +1,4 @@
-from torch.autograd import Variable
 from torch.utils.data import DataLoader, TensorDataset
-from torch import optim
-from torch.nn import functional as F
 from torch import nn
 import pytorch_lightning as pl
 import torch
@@ -9,13 +6,13 @@ import numpy as np
 import scipy.sparse as sp
 from src.utils.sparse import sparse_scipy2torch
 from src.tgcn.layers.lstmcell import GCLSTMCell
-
+from src.eval.measures import rmse, smape
 torch.manual_seed(0)
 
 
 class TGCN(pl.LightningModule):
     def __init__(self, input_dim, hidden_dim, layer_dim, output_dim, adj, adj_norm=False,
-                 datasets=None, targets=None, dropout=0.5, mask=None):
+                 datasets=None, targets=None, dropout=0.5, mask=None, scaler=None):
         super(TGCN, self).__init__()
 
         # Hidden dimensions
@@ -31,8 +28,14 @@ class TGCN(pl.LightningModule):
         self.adj = self._transform_adj(adj) if adj_norm else adj
         self.dropout = nn.Dropout(dropout)
         self.targets = targets
+        self.scaler = scaler
 
         self.mask = mask
+
+        self.opt = torch.optim.Adam(self.parameters(), lr=0.01, weight_decay=0.015)
+        self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            self.opt, patience=3, verbose=True
+        )
 
     def _transform_adj(self, adj):
         # build symmetric adjacency matrix
@@ -54,15 +57,15 @@ class TGCN(pl.LightningModule):
     def forward(self, x):
         # shape x: [batch_size, seq_length, input_dim(features)] 6163, 9, 27
         if torch.cuda.is_available():
-            h0 = Variable(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).cuda())
+            h0 = nn.Parameter(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).cuda())
         else:
-            h0 = Variable(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim))
+            h0 = nn.Parameter(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim))
 
         # Initialize cell state
         if torch.cuda.is_available():
-            c0 = Variable(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).cuda())
+            c0 = nn.Parameter(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).cuda())
         else:
-            c0 = Variable(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim))
+            c0 = nn.Parameter(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim))
 
         outs = []
 
@@ -81,7 +84,7 @@ class TGCN(pl.LightningModule):
         return out
 
     def configure_optimizers(self):
-        return optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-5)
+        return [self.opt]
 
     def training_step(self, batch, batch_nb):
         x, y = batch
@@ -91,8 +94,8 @@ class TGCN(pl.LightningModule):
         _mask = self.mask['train'][batch_nb, :, :]
         y_hat = y_hat.masked_select(_mask)
         y = y.masked_select(_mask)
-
-        return {'loss': F.mse_loss(y_hat, y.float())}
+        # use l1 loss
+        return {'loss': torch.sum(torch.abs(y_hat - y.float()))}
 
     @pl.data_loader
     def tng_dataloader(self):
@@ -117,11 +120,23 @@ class TGCN(pl.LightningModule):
         y_hat = y_hat.masked_select(_mask)
         y = y.masked_select(_mask)
 
-        print(f"y_hat: {y_hat}")
-        mae = (y_hat - y.float()).abs().sum() / _mask.sum()
-        return {'val_mae': mae}
+        # convert to np.array for inverse transformation
+        y_hat = self.scaler.inverse_transform(np.array(y_hat).reshape(-1, 1))
+        y = self.scaler.inverse_transform(np.array(y).reshape(-1, 1))
+
+        _mae = torch.FloatTensor(np.abs(y_hat - y)).sum() / _mask.sum()
+        _rmse = torch.FloatTensor(rmse(actual=y, predicted=y_hat))
+        _smape = torch.FloatTensor(smape(actual=y, predicted=y_hat))
+        return {'val_mae': _mae,
+                'val_rmse': _rmse,
+                'val_smape': _smape}
 
     def validation_end(self, outputs):
         # OPTIONAL
-        avg_loss = torch.stack([x['val_mae'] for x in outputs]).mean()
-        return {'avg_val_mae': avg_loss}
+        avg_mae_loss = torch.stack([x['val_mae'] for x in outputs]).mean()
+        avg_rmse_loss = torch.stack([x['val_rmse'] for x in outputs]).mean()
+        avg_smape_loss = torch.stack([x['val_smape'] for x in outputs]).mean()
+        return {'avg_val_mae': avg_mae_loss,
+                'avg_rmse_loss': avg_rmse_loss,
+                'avg_smape_loss': avg_smape_loss
+                }

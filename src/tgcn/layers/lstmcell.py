@@ -49,13 +49,13 @@ class GCLSTMCell(nn.Module):
 
         ingate, forgetgate, cellgate, outgate = gates.chunk(4, 1)
 
-        ingate = F.sigmoid(ingate)
-        forgetgate = F.sigmoid(forgetgate)
-        cellgate = F.tanh(cellgate)
-        outgate = F.sigmoid(outgate)
+        ingate = torch.sigmoid(ingate)
+        forgetgate = torch.sigmoid(forgetgate)
+        cellgate = torch.tanh(cellgate)
+        outgate = torch.sigmoid(outgate)
 
         cy = torch.mul(cx, forgetgate) + torch.mul(ingate, cellgate)
 
-        hy = torch.mul(outgate, F.tanh(cy))
+        hy = torch.mul(outgate, torch.tanh(cy))
 
         return hy, cy

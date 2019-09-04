@@ -10,6 +10,7 @@ import scipy.sparse as sp
 
 from torch.utils.data import DataLoader, TensorDataset
 
+from src.eval.measures import rmse, smape
 from src.utils.sparse import sparse_scipy2torch
 
 
@@ -104,7 +105,7 @@ class STGCN(pl.LightningModule):
     """
 
     def __init__(self, num_nodes=6163, num_features=29, num_timesteps_input=9,
-                 num_timesteps_output=1, adj=None, datasets=None, targets=None, mask=None, normalized=False):
+                 num_timesteps_output=1, adj=None, datasets=None, targets=None, mask=None, normalized=False, scaler=None):
         """
         :param num_nodes: Number of nodes in the graph.
         :param num_features: Number of features at each node in each time step.
@@ -127,6 +128,7 @@ class STGCN(pl.LightningModule):
         self.mask = mask
 
         self.adj = self._transform_adj(adj) if normalized else adj
+        self.scaler = scaler
 
     def _transform_adj(self, adj):
         # build symmetric adjacency matrix
@@ -159,7 +161,7 @@ class STGCN(pl.LightningModule):
         return out4
 
     def configure_optimizers(self):
-        return optim.Adam(self.parameters(), lr=1e-4, weight_decay=1e-5)
+        return optim.Adam(self.parameters(), lr=1e-2, weight_decay=1e-3)
 
     def training_step(self, batch, batch_nb):
         # (batch_size, num_nodes, num_input_time_steps, num_features)
@@ -174,7 +176,7 @@ class STGCN(pl.LightningModule):
         y_hat = y_hat.masked_select(_mask)
         y = y.masked_select(_mask)
 
-        return {'loss': F.mse_loss(y_hat, y.float())}
+        return {'loss': torch.sum(torch.abs(y_hat - y.float()))}
 
     @pl.data_loader
     def tng_dataloader(self):
@@ -202,12 +204,24 @@ class STGCN(pl.LightningModule):
         y_hat = y_hat.masked_select(_mask)
         y = y.masked_select(_mask)
 
-        print(f"y_hat: {y_hat}")
-        mae = (y_hat - y.float()).abs().sum() / _mask.sum()
-        return {'val_mae': mae}
+        # convert to np.array for inverse transformation
+        y_hat = self.scaler.inverse_transform(np.array(y_hat).reshape(-1, 1))
+        y = self.scaler.inverse_transform(np.array(y).reshape(-1, 1))
+
+        _mae = torch.FloatTensor(np.abs(y_hat - y)).sum() / _mask.sum()
+        _rmse = torch.FloatTensor(rmse(actual=y, predicted=y_hat))
+        _smape = torch.FloatTensor(smape(actual=y, predicted=y_hat))
+        return {'val_mae': _mae,
+                'val_rmse': _rmse,
+                'val_smape': _smape}
 
     def validation_end(self, outputs):
         # OPTIONAL
-        avg_loss = torch.stack([x['val_mae'] for x in outputs]).mean()
-        return {'avg_val_mae': avg_loss}
+        avg_mae_loss = torch.stack([x['val_mae'] for x in outputs]).mean()
+        avg_rmse_loss = torch.stack([x['val_rmse'] for x in outputs]).mean()
+        avg_smape_loss = torch.stack([x['val_smape'] for x in outputs]).mean()
+        return {'avg_val_mae': avg_mae_loss,
+                'avg_rmse_loss': avg_rmse_loss,
+                'avg_smape_loss': avg_smape_loss
+                }
 
