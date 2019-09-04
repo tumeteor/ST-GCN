@@ -1,19 +1,15 @@
 from torch.nn.parameter import Parameter
-from collections import defaultdict
-import os
 import numpy as np
 import torch
-from torch.nn import functional as F
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
-from src.graph_utils import partition_graph_by_lonlat
-from src.utils.memory import mem_report
+from torch.utils.data.dataset import Dataset
 
 torch.manual_seed(0)
 
 
 class LSM_RN(pl.LightningModule):
-    def __init__(self, t_steps, n, k, λ, adj_mat, datasets, batch_size=8):
+    def __init__(self, t_steps, n, k, λ, feature_size, adj_mat, datasets, batch_size=8):
         super(LSM_RN, self).__init__()
 
         self.n = n
@@ -22,9 +18,12 @@ class LSM_RN(pl.LightningModule):
         self.datasets = datasets
         self.batch_size = batch_size
         self.t_steps = k
+        self.feature_size = feature_size
+
         self.L = self.get_laplacian(adj_mat)
         self.U = Parameter(torch.Tensor(t_steps, n, k))
-        self.B = Parameter(torch.Tensor(k, k))
+        self.B = Parameter(torch.Tensor(k, k, self.feature_size))
+        self.G_t = torch.empty(self.batch_size, n, n, self.feature_size)
         torch.nn.init.uniform_(self.U, 0, 0.2)
         torch.nn.init.uniform_(self.B, 0, 0.2)
 
@@ -34,10 +33,15 @@ class LSM_RN(pl.LightningModule):
         return torch.Tensor(degree_mat - adj_mat)
 
     def forward(self, t):
-        mem_report()
         U_t = self.U[t]
         # chain_matmul does not support batched
-        return U_t.matmul(self.B).matmul(U_t.transpose(1, 2))
+
+        for i in range(0, self.feature_size):
+            print(f"AAA: {self.G_t[:, :, i].shape}")
+            print(f"AAB: {self.B[:, :, i].shape}")
+            print(f"AAC: {U_t.shape}")
+            self.G_t[:, :, :, i] = U_t.matmul(self.B[:, :, i]).matmul(U_t.transpose(1, 2))
+        return self.G_t
 
     def loss(self, U_t, G_hat, G):
         # TODO sparse matrixes
@@ -46,10 +50,10 @@ class LSM_RN(pl.LightningModule):
 
         fro = torch.norm(mask * (G_hat - G), p="fro", dim=(1, 2)).mean()
         laplacian_term = (
-            self.λ
-            * torch.einsum(
-                "...ii", U_t.transpose(1, 2).matmul(self.L).matmul(U_t)
-            ).mean()
+                self.λ
+                * torch.einsum(
+            "...ii", U_t.transpose(1, 2).matmul(self.L).matmul(U_t)
+        ).mean()
         )
 
         return {
@@ -60,15 +64,25 @@ class LSM_RN(pl.LightningModule):
 
     def training_step(self, batch, batch_nb):
         t, G = batch
-        G_hat = self.forward(t)
+        G = G[:, :, :, 0]
+        print(f"G shape: {G.shape}")
+        print(f"t: {t}, batch_nb: {batch_nb}")
+        G_hat = self.forward(t)[:, :, :, 0]
+        print(f"Ghat shape: {G_hat.shape}")
         U_t = self.U[t]
+        print(f"Ut shape: {U_t.shape}")
 
         return self.loss(U_t, G_hat, G)
 
     def validation_step(self, batch, batch_nb):
         t, G = batch
-        G_hat = self.forward(t)
+        G = G[:, :, :, 0]
+        print(f"G shape: {G.shape}")
+        print(f"t: {t}, batch_nb: {batch_nb}")
+        G_hat = self.forward(t)[:, :, :, 0]
+        print(f"Ghat shape: {G_hat.shape}")
         U_t = self.U[t]
+        print(f"Ut shape: {U_t.shape}")
 
         mask = torch.zeros(G.size())
         mask[G != 0] = 1
@@ -93,11 +107,11 @@ class LSM_RN(pl.LightningModule):
             "avg_val_loss": sum([o["val_loss"] for o in outputs]) / len(outputs),
             "avg_val_fro": sum([o["val_fro"] for o in outputs]) / len(outputs),
             "avg_laplacian_term": sum([o["val_laplacian_term"] for o in outputs])
-            / len(outputs),
+                                  / len(outputs),
         }
 
     def configure_optimizers(self):
-        return [torch.optim.Adam(self.parameters(), lr=0.0015)]
+        return [torch.optim.Adam(self.parameters(), lr=0.0001)]
 
     def _dataloader_from_tensor(self, t):
         return DataLoader(
@@ -117,3 +131,18 @@ class LSM_RN(pl.LightningModule):
     @pl.data_loader
     def test_dataloader(self):
         return self._dataloader_from_tensor(self.datasets["tst"])
+
+
+class SparseTensorDataset(Dataset):
+    def __init__(self, *tensors):
+        assert all(tensors[0].size(0) == tensor.size(0) for tensor in tensors)
+        self.tensors = tensors
+
+    def __getitem__(self, index):
+        # TODO
+        # make slicing possible
+        raise NotImplementedError
+
+    def __len__(self):
+        return self.tensors[0].size(0)
+
