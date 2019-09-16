@@ -8,7 +8,7 @@ import json
 import networkx as nx
 
 from src.config import Config
-from src.graph_utils import partition_graph_by_lonlat
+from src.utils.graph_utils import partition_graph_by_lonlat
 from src.module import MINIO_CLIENT_GETTER, DB_ENGINE_GETTER
 cfg = Config()
 

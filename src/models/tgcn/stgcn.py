@@ -10,7 +10,7 @@ import scipy.sparse as sp
 
 from torch.utils.data import DataLoader, TensorDataset
 
-from src.eval.measures import rmse, smape
+from src.metrics.measures import rmse, smape
 from src.utils.sparse import sparse_scipy2torch
 
 

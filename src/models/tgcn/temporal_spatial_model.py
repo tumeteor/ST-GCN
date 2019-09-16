@@ -5,8 +5,8 @@ import torch
 import numpy as np
 import scipy.sparse as sp
 from src.utils.sparse import sparse_scipy2torch
-from src.tgcn.layers.lstmcell import GCLSTMCell
-from src.eval.measures import rmse, smape
+from src.models.tgcn.layers.lstmcell import GCLSTMCell
+from src.metrics.measures import rmse, smape
 torch.manual_seed(0)
 
 

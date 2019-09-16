@@ -24,7 +24,7 @@ TOTAL_T_STEPS = 144
 # ## Get Jurbey Sub-Graph
 
 # +
-from src.graph_utils import partition_graph_by_lonlat
+from src.utils.graph_utils import partition_graph_by_lonlat
 from jurbey.jurbey import JURBEY
 
 with open("../data/1556798416403.jurbey", 'rb') as tempf:
@@ -76,7 +76,7 @@ df_preprocessed = df_unique
 import networkx as nx
 import scipy.sparse as sp
 import numpy as np
-import torch
+
 
 def sparse_mx_to_torch_sparse_tensor(sparse_mx):
     """Convert a scipy sparse matrix to a torch sparse tensor."""
@@ -160,7 +160,7 @@ static_df = df_preprocessed[static_features]
 
 # +
 # Speed preprocessing
-from sklearn.preprocessing import FunctionTransformer, RobustScaler
+from sklearn.preprocessing import RobustScaler
 from sklearn.pipeline import Pipeline
 import pandas as pd
 
@@ -211,11 +211,10 @@ ts_dataset = torch.utils.data.TensorDataset(speed_seq, mask_seq, static_seq)
 adj_dense = adj.to_dense()
 
 # +
-from src.nmf.lsm_rn import LSM_RN
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from test_tube import Experiment
-from src.gcn_lstm.gcn_lstm_model import GCNLSTMModel 
+from src.models.gcn_lstm.gcn_lstm_model import GCNLSTMModel
 
 model = GCNLSTMModel(38, 6, 3, adj_dense, ts_dataset, speed_transform=speed_pipeline, timesteps=WINDOW - 1, batch_size=32)
 exp = Experiment(save_dir='gcnlstm_logs')

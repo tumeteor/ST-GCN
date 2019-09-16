@@ -24,7 +24,7 @@ TOTAL_T_STEPS = 144
 # # Get adjacency matrix for our partitions of Jurbey map
 
 # +
-from src.graph_utils import partition_graph_by_lonlat
+from src.utils.graph_utils import partition_graph_by_lonlat
 import networkx as nx
 from jurbey.jurbey import JURBEY
 
@@ -83,7 +83,6 @@ def snapshot(t, df=df, g_partition=g_partition):
 
 
 # +
-from scipy.sparse import hstack
 
 def build_sparse_dataset(from_=0, to=TOTAL_T_STEPS):
     dataset = {"indices": ([], [], []), "values": []}
@@ -138,7 +137,7 @@ for name, idxs in [('tng', tng_idxs), ('val', val_idxs), ('tst', tst_inxs)]:
 # # Let's train model
 
 # +
-from src.nmf.lsm_rn import LSM_RN
+from src.models.nmf import LSM_RN
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from test_tube import Experiment

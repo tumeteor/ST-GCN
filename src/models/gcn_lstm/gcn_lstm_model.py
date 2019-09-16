@@ -1,12 +1,10 @@
-import os
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Subset
 import pytorch_lightning as pl
-from src.gcn_lstm.gcn_lstm import GCN_LSTM
+from src.models.gcn_lstm.gcn_lstm import GCN_LSTM
 
 torch.manual_seed(0)
 
