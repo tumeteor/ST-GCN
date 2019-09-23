@@ -11,7 +11,7 @@ torch.manual_seed(0)
 
 class GCLSTMCell(nn.Module):
 
-    def __init__(self, input_size, hidden_size, adj=None, bias=True):
+    def __init__(self, input_size, hidden_size, bias=True):
         super(GCLSTMCell, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -23,7 +23,6 @@ class GCLSTMCell(nn.Module):
         self.h2h = nn.Linear(hidden_size, 4 * hidden_size, bias=bias)
         self.gcn_weight = Parameter(torch.FloatTensor(input_size, hidden_size))
 
-        self.adj = adj
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -33,9 +32,9 @@ class GCLSTMCell(nn.Module):
         if self.bias is not None:
             self.bias.data.uniform_(-std, std)
 
-    def forward(self, x, hx, cx):
+    def forward(self, x, hx, cx, adj):
         support = torch.mm(x.float(), self.gcn_weight)
-        x = torch.spmm(self.adj, support)
+        x = torch.spmm(adj, support)
         x = F.relu(x)
         x = F.dropout(x, training=self.training)
         if self.bias is not None:
