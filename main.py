@@ -1,10 +1,10 @@
-from logs import get_logger_settings, setup_logging
+from src.logs import get_logger_settings, setup_logging
 import sys
 import argparse
 import json
 import logging
 from src.config import Config
-from src.data_loader.reader import read_jurbey_from_minio, construct_time_series_traffic_data
+from src.data_loader.reader import read_jurbey_from_minio, construct_time_series_traffic_data_using_druid
 
 if __name__ == "__main__":
     cfg = Config()
@@ -27,7 +27,7 @@ if __name__ == "__main__":
     logging.info("\u2705 Done loading Jurbey graph.")
 
     # create dataset
-    construct_time_series_traffic_data(g)
+    construct_time_series_traffic_data_using_druid(g)
 
     sys.exit(0)
     # populate with max speed
