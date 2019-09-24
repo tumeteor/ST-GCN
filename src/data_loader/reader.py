@@ -83,11 +83,6 @@ def _get_traffic_from_postgres(table_name, hour):
     return df
 
 
-def contruct_time_series_traffic_data(parquet_path):
-    df = pd.read_parquet(parquet_path)
-    df = df['speed_mean'].transpose()
-
-
 def construct_time_series_traffic_data_using_druid(g, granularity='hour', from_ts='2019-04-01', to_ts='2019-04-07'):
     """
     Contruct timeseries dataset using Druid

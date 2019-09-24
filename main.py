@@ -26,63 +26,7 @@ if __name__ == "__main__":
     g = read_jurbey_from_minio(message['bucket'], message['jurbey_path'])
     logging.info("\u2705 Done loading Jurbey graph.")
 
-    # create dataset
-    construct_time_series_traffic_data_using_druid(g)
-
-    sys.exit(0)
-    # populate with max speed
-    g = populate_graph_with_max_speed(g)
-
-    # sample to sub-graph
-    g = sample_graph_by_nodes(g, 10000)
-
-    # populate with fresh speed
-    logging.info('\u2B07 Start populating speed to the graph...')
-    g, fresh_edge_list = populate_graph_with_fresh_speed(g)
-    print(f"number of fresh edges for the sampled graph: {len(fresh_edge_list)}")
-
-    logging.info('\u2B07 Done populating speed to the graph...')
-
-    # extract the adjacency matrix from graph
-    A = nx.adjacency_matrix(g, weight="fresh_speed")
-    B = nx.adjacency_matrix(g, weight="speed")
-
-    # construct ground-truths
-    gt_edges = random.sample(fresh_edge_list, 50)
-    node_list = list(g.nodes())
-    edge_list = list(g.edges())
-    for u, v in gt_edges:
-        g[u][v]["old_speed"] = A[node_list.index(u), node_list.index(v)]
-        A[node_list.index(u), node_list.index(v)] = np.nan
-        g[u][v]["speed"] = B[node_list.index(u), node_list.index(v)]
-    W, H = nmf(X=A, K=10, iterations=2000)
-
-    y_actual = list()
-    y_pred = list()
-    y_pred_max = list()
-    for u, v in gt_edges:
-        actual = g[u][v]["old_speed"]
-        pred = np.dot(W[node_list.index(u)], H[node_list.index(v)])
-        y_actual.append(actual)
-        y_pred.append(pred)
-        y_pred_max.append(g[u][v]["speed"])
-
-    # do evaluation
-    mf_rmse = rmse(y_actual, y_pred)
-    print(f'rmse for MF: {rmse}')
-    ms_rmse = rmse(y_actual, y_pred_max)
-    print(f'rmse for max speed: {ms_rmse}')
-    for x, y, z in zip(y_actual, y_pred, y_pred_max):
-        print(x, y, z)
-
-    # train_nmf_with_sparse_matrix(A)
-    # df = get_dataframe_from_graph(g)
-    # train_nmf_with_dataframe(df, len(df))
-
-
-
-
-
+    
 
 
 
