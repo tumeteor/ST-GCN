@@ -1,59 +1,17 @@
-from torch.utils.data import DataLoader, TensorDataset, ConcatDataset, Sampler, Subset
+from torch.utils.data import DataLoader, TensorDataset, ConcatDataset
 from torch import nn
 import pytorch_lightning as pl
 import torch
 import numpy as np
 import scipy.sparse as sp
-from src.utils.sparse import sparse_scipy2torch
-from src.models.tgcn.layers.lstmcell import GCLSTMCell
+
+from src.data_loader.resampling_dataset import CustomSampler
+from src.data_loader.tensor_dataset import CustomTensorDataset
+from src.utils.sparse import sparse_scipy2torch, dense_to_sparse
+from src.modules.layers import GCLSTMCell
 from src.metrics.measures import rmse, smape
 
 torch.manual_seed(0)
-
-
-class CustomSampler(Sampler):
-
-    def __init__(self, data_source, cum_indices, shuffle=True):
-        super().__init__(data_source)
-        self.data_source = data_source
-        self.cum_indices = [0] + cum_indices
-        self.shuffle = shuffle
-
-    def __iter__(self):
-        batch = []
-        for prev, curr in zip(self.cum_indices, self.cum_indices[1:]):
-            for idx in range(prev, curr):
-                batch.append(idx)
-            yield batch
-            batch = []
-
-    def __len__(self):
-        return len(self.data_source)
-
-def to_sparse(x):
-    """ converts dense tensor x to sparse format """
-    x_typename = torch.typename(x).split('.')[-1]
-    sparse_tensortype = getattr(torch.sparse, x_typename)
-
-    indices = torch.nonzero(x)
-    if len(indices.shape) == 0:  # if all elements are zeros
-        return sparse_tensortype(*x.shape)
-    indices = indices.t()
-    values = x[tuple(indices[i] for i in range(indices.shape[0]))]
-    return sparse_tensortype(indices, values, x.size())
-
-
-class CustomTensorDataset(TensorDataset):
-    def __init__(self, *tensors, adj_tensor):
-        assert all(tensors[0].size(0) == tensor.size(0) for tensor in tensors)
-        self.tensors = tensors
-        self.adj_tensor = adj_tensor
-
-    def __getitem__(self, index):
-        return tuple((tensor[index], self.adj_tensor) for tensor in self.tensors)
-
-    def __len__(self):
-        return self.tensors[0].size(0)
 
 
 class TGCN(pl.LightningModule):
@@ -86,7 +44,6 @@ class TGCN(pl.LightningModule):
         self.a = torch.split(self.datasets['valid'], 4000, dim=1)[0].permute(1, 0, 2, 3)
         self.b = torch.split(self.targets['valid'], 4000, dim=1)[0].permute(1, 0, 2)
         self.c = torch.split(self.mask['valid'], 4000, dim=1)[0]
-
 
     def _transform_adj(self, adj):
         # build symmetric adjacency matrix
@@ -140,7 +97,7 @@ class TGCN(pl.LightningModule):
     def training_step(self, batch, batch_nb):
         print(f"batch length: {len(batch)}")
         (x, adj), (y, _) = batch
-        adj = to_sparse(adj.to_dense().squeeze(dim=0))
+        adj = dense_to_sparse(adj.to_dense().squeeze(dim=0))
         # x: torch.Size([1, 6163, 29, 9])
         # y: torch.Size([1, 6163, 1])
 
@@ -164,11 +121,8 @@ class TGCN(pl.LightningModule):
         batches = list()
         for batch_nb, batch in enumerate(dl):
             x, y = batch
-            print(f"AAA: {type(self.adjs[batch_nb])}, batch_nb: {batch_nb}")
-            print(f'batch_nb: {batch_nb}, adj: {self.adjs[batch_nb].shape}')
             x = x.permute(1, 0, 2, 3)
             y = y.permute(1, 0, 2)
-            print(f'BBB: {y.shape}, {x.shape}')
             batches.append(CustomTensorDataset(x, y, adj_tensor=self.adjs[batch_nb]))
         return DataLoader(ConcatDataset(batches), batch_size=1, shuffle=False)
         # return DataLoader(TensorDataset(self.datasets['train'], self.targets['train']), batch_size=1, shuffle=False)

@@ -37,9 +37,6 @@ class LSM_RN(pl.LightningModule):
         # chain_matmul does not support batched
 
         for i in range(0, self.feature_size):
-            print(f"AAA: {self.G_t[:, :, i].shape}")
-            print(f"AAB: {self.B[:, :, i].shape}")
-            print(f"AAC: {U_t.shape}")
             self.G_t[:, :, :, i] = U_t.matmul(self.B[:, :, i]).matmul(U_t.transpose(1, 2))
         return self.G_t
 
@@ -65,24 +62,16 @@ class LSM_RN(pl.LightningModule):
     def training_step(self, batch, batch_nb):
         t, G = batch
         G = G[:, :, :, 0]
-        print(f"G shape: {G.shape}")
-        print(f"t: {t}, batch_nb: {batch_nb}")
         G_hat = self.forward(t)[:, :, :, 0]
-        print(f"Ghat shape: {G_hat.shape}")
         U_t = self.U[t]
-        print(f"Ut shape: {U_t.shape}")
 
         return self.loss(U_t, G_hat, G)
 
     def validation_step(self, batch, batch_nb):
         t, G = batch
         G = G[:, :, :, 0]
-        print(f"G shape: {G.shape}")
-        print(f"t: {t}, batch_nb: {batch_nb}")
         G_hat = self.forward(t)[:, :, :, 0]
-        print(f"Ghat shape: {G_hat.shape}")
         U_t = self.U[t]
-        print(f"Ut shape: {U_t.shape}")
 
         mask = torch.zeros(G.size())
         mask[G != 0] = 1
