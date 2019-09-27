@@ -19,11 +19,11 @@ def get_logger_settings(log_level):
     settings = {
         "version": 1,
         "disable_existing_loggers": False,
-        "filters": {"global": {"()": "logs.GlobalFilter"}},
+        "filters": {"global": {"()": "src.logs.GlobalFilter"}},
         "formatters": {
             "json": {
                 "format": "[%(ts)s %(level)s %(message)s %(category)s]",
-                "class": "logs.CustomJsonFormatter",
+                "class": "src.logs.CustomJsonFormatter",
             }
         },
         "handlers": {

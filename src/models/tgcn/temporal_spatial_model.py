@@ -1,22 +1,21 @@
-from torch.utils.data import DataLoader, TensorDataset, ConcatDataset
+from torch.utils.data import DataLoader
 from torch import nn
 import pytorch_lightning as pl
 import torch
 import numpy as np
 import scipy.sparse as sp
 
-from src.data_loader.resampling_dataset import CustomSampler
 from src.data_loader.tensor_dataset import CustomTensorDataset
+from src.modules.layers.lstmcell import GCLSTMCell
 from src.utils.sparse import sparse_scipy2torch, dense_to_sparse
-from src.modules.layers import GCLSTMCell
 from src.metrics.measures import rmse, smape
 
 torch.manual_seed(0)
 
 
 class TGCN(pl.LightningModule):
-    def __init__(self, input_dim, hidden_dim, layer_dim, output_dim, adjs, adj_norm=False,
-                 datasets=None, targets=None, dropout=0.5, mask=None, scaler=None):
+    def __init__(self, input_dim, hidden_dim, layer_dim, output_dim, adjs, adj_norm=True,
+                 datasets=None, dropout=0.5, masks=None):
         super(TGCN, self).__init__()
 
         # Hidden dimensions
@@ -31,19 +30,13 @@ class TGCN(pl.LightningModule):
         self.datasets = datasets
         self.adjs = [self._transform_adj(_adj) for _adj in adjs] if adj_norm else adjs
         self.dropout = nn.Dropout(dropout)
-        self.targets = targets
-        self.scaler = scaler
 
-        self.mask = mask
+        self.masks = masks
 
         self.opt = torch.optim.Adam(self.parameters(), lr=0.01, weight_decay=0.015)
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.opt, patience=3, verbose=True
         )
-
-        self.a = torch.split(self.datasets['valid'], 4000, dim=1)[0].permute(1, 0, 2, 3)
-        self.b = torch.split(self.targets['valid'], 4000, dim=1)[0].permute(1, 0, 2)
-        self.c = torch.split(self.mask['valid'], 4000, dim=1)[0]
 
     def _transform_adj(self, adj):
         # build symmetric adjacency matrix
@@ -95,64 +88,69 @@ class TGCN(pl.LightningModule):
         return [self.opt]
 
     def training_step(self, batch, batch_nb):
-        print(f"batch length: {len(batch)}")
-        (x, adj), (y, _) = batch
+        x, y, adj, mask = batch
         adj = dense_to_sparse(adj.to_dense().squeeze(dim=0))
         # x: torch.Size([1, 6163, 29, 9])
         # y: torch.Size([1, 6163, 1])
-
+        x = x.squeeze(dim=0)
         y = y.squeeze(dim=0)
+        x = x.permute(0, 1, 3, 2)
         y_hat = self.forward(x, adj).squeeze(dim=0)
 
-        _mask = self.mask['train'][batch_nb, :, :] if batch_nb < 91 else self.c[batch_nb-91, :, :]
-        print(f"CCCC: {y_hat.shape}, {_mask.shape}")
-        y_hat = y_hat.masked_select(_mask)
-        y = y.masked_select(_mask)
+        y_hat = y_hat.masked_select(mask)
+        y = y.masked_select(mask)
         # use l1 loss
         return {'loss': torch.sum(torch.abs(y_hat - y.float()))}
 
     @pl.data_loader
     def tng_dataloader(self):
-        datasets = ConcatDataset(
-            [TensorDataset(self.datasets['train'].permute(1, 0, 2, 3), self.targets['train'].permute(1, 0, 2)),
-             TensorDataset(self.a, self.b)])
-
-        dl = DataLoader(datasets, batch_sampler=CustomSampler(datasets, datasets.cumulative_sizes), shuffle=False)
-        batches = list()
-        for batch_nb, batch in enumerate(dl):
-            x, y = batch
-            x = x.permute(1, 0, 2, 3)
-            y = y.permute(1, 0, 2)
-            batches.append(CustomTensorDataset(x, y, adj_tensor=self.adjs[batch_nb]))
-        return DataLoader(ConcatDataset(batches), batch_size=1, shuffle=False)
-        # return DataLoader(TensorDataset(self.datasets['train'], self.targets['train']), batch_size=1, shuffle=False)
+        ds = CustomTensorDataset(self.datasets['train'], adj_list=self.adjs,
+                                 mask_list=self.masks['train'],
+                                 time_steps=len(self.datasets['train']))
+        return DataLoader(ds, batch_size=1, shuffle=False)
 
     @pl.data_loader
     def val_dataloader(self):
-        return DataLoader(TensorDataset(self.datasets['valid'], self.targets['valid']), batch_size=1, shuffle=False)
+        ds = CustomTensorDataset(self.datasets['valid'], adj_list=self.adjs,
+                                 mask_list=self.masks['valid'],
+                                 time_steps=len(self.datasets['valid']))
+        return DataLoader(ds, batch_size=1, shuffle=False)
 
     @pl.data_loader
     def test_dataloader(self):
-        return DataLoader(TensorDataset(self.datasets['test'], self.targets['test']), batch_size=1, shuffle=False)
+        ds = CustomTensorDataset(self.datasets['test'], adj_list=self.adjs,
+                                 mask_list=self.masks['test'],
+                                 time_steps=len(self.datasets['test']))
+        return DataLoader(ds, batch_size=1, shuffle=False)
 
     def validation_step(self, batch, batch_nb):
         # batch shape: torch.Size([1, 6163, 26, 10])
-        x, y = batch
-        y = y.squeeze(dim=0)
+        x, y, adj, mask = batch
+        adj = dense_to_sparse(adj.to_dense().squeeze(dim=0))
+        x = x.squeeze(dim=0)
+        y = y.squeeze(dim=0).float()
+        x = x.permute(0, 1, 3, 2)
 
-        y_hat = self.forward(x, self.adjs[0]).squeeze(dim=0)
-        _mask = self.mask['valid'][batch_nb, :, :]
+        print(f"x shape: {x.shape}")
+        print(f"y shape: {y.shape}")
+        print(f"adj shape: {adj.shape}")
 
-        y_hat = y_hat.masked_select(_mask)
-        y = y.masked_select(_mask)
-
+        y_hat = self.forward(x, adj).squeeze(dim=0)
+        print(f"CCC: {y_hat.shape}")
+        y_hat = y_hat.masked_select(mask)
+        y = y.masked_select(mask)
+        print(f"y_hat: {y_hat}")
+        print(f"y: {y}")
         # convert to np.array for inverse transformation
-        y_hat = self.scaler.inverse_transform(np.array(y_hat).reshape(-1, 1))
-        y = self.scaler.inverse_transform(np.array(y).reshape(-1, 1))
+        # y_hat = scaler.inverse_transform(np.array(y_hat).reshape(-1, 1))
+        # y = scaler.inverse_transform(np.array(y).reshape(-1, 1))
 
-        _mae = torch.FloatTensor(np.abs(y_hat - y)).sum() / _mask.sum()
-        _rmse = torch.FloatTensor([rmse(actual=y, predicted=y_hat)])
-        _smape = torch.FloatTensor([smape(actual=y, predicted=y_hat)])
+        _mae = torch.FloatTensor(np.abs(y_hat - y)).sum() / mask.sum()
+        print(f"y shape: {y.shape}")
+        print(f"y_hat shape: {y_hat.shape}")
+
+        _rmse = torch.FloatTensor([rmse(actual=y.numpy(), predicted=y_hat.numpy())])
+        _smape = torch.FloatTensor([smape(actual=y.numpy(), predicted=y_hat.numpy())])
         return {'val_mae': _mae,
                 'val_rmse': _rmse,
                 'val_smape': _smape}
