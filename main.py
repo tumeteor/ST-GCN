@@ -1,10 +1,19 @@
-from src.logs import get_logger_settings, setup_logging
-import sys
+import os
+import torch
+
+import h5py
+import numpy as np
+from test_tube import Experiment
+from pytorch_lightning import Trainer
 import argparse
 import json
 import logging
+
 from src.config import Config
-from src.data_loader.reader import read_jurbey_from_minio, construct_time_series_traffic_data_using_druid
+from src.data_loader.reader import read_jurbey, read_cluster_mapping, get_adj_from_subgraph
+from src.logs import get_logger_settings, setup_logging
+from src.data_loader.datasets import DatasetBuilder
+from src.models.tgcn.temporal_spatial_model import TGCN
 
 if __name__ == "__main__":
     cfg = Config()
@@ -23,10 +32,73 @@ if __name__ == "__main__":
         message = json.load(f)
 
     logging.info('\u2B07 Getting Jurbey File...')
-    g = read_jurbey_from_minio(message['bucket'], message['jurbey_path'])
+    # g = read_jurbey_from_minio(message['bucket'], message['jurbey_path'])
+    g = read_jurbey()
     logging.info("\u2705 Done loading Jurbey graph.")
 
-    
+    mapping = read_cluster_mapping()
 
+    data = list()
+    targets = list()
+    adjs = list()
+    masks = list()
+    for cluster_id in mapping:
+        adj, L = get_adj_from_subgraph(cluster_id=cluster_id, g=g, mapping=mapping)
+        if L.number_of_nodes() < 100: continue
+        # cache them in h5
+        if os.path.exists(f"data/cache/cluster_id={cluster_id}.hdf5"):
+            h = h5py.File(f"data/cache/cluster_id={cluster_id}.hdf5", "r")
+        else:
+            db = DatasetBuilder(g=g)
 
+            _data, target, mask = db.load_batch_file(f"data/clusters/cluster_id={cluster_id}/", L=L)
+            h = h5py.File(f"data/cache/cluster_id={cluster_id}.hdf5", "w")
+            data_group = h.create_group(name="data")
+            for k, v in _data.items():
+                data_group.create_dataset(k, data=v, chunks=True, compression='gzip')
+            target_group = h.create_group(name="target")
+            for k, v in target.items():
+                target_group.create_dataset(k, data=v, chunks=True, compression='gzip')
+            mask_group = h.create_group(name="mask")
+            for k, v in mask.items():
+                mask_group.create_dataset(k, data=v, chunks=True, compression='gzip')
 
+        data.append(h["data"])
+        targets.append(h["target"])
+        masks.append(h["mask"])
+        adjs.append(adj)
+    print(f"data length: {len(data)}")
+    datasets = dict()
+    mask_dict = dict()
+
+    print(f"AAA: {np.array(data[0]['train']).shape}")
+    for gidx in range(len(data)):
+        datasets['train'] += [(torch.from_numpy(x), torch.from_numpy(t)) for x, t in zip(
+            np.split(np.array(data[gidx]['train']), len(np.array(data[gidx]['train'])), axis=0),
+            np.split(np.array(targets[gidx]['train']), len(np.array(targets[gidx]['train'])), axis=0))]
+
+        datasets['valid'] += [(torch.from_numpy(x), torch.from_numpy(t)) for x, t in zip(
+            np.split(np.array(data[gidx]['valid']), len(np.array(data[gidx]['valid'])), axis=0),
+            np.split(np.array(targets[gidx]['valid']), len(np.array(targets[gidx]['valid'])), axis=0))]
+
+        datasets['test'] += [(torch.from_numpy(x), torch.from_numpy(t)) for x, t in zip(
+            np.split(np.array(data[gidx]['test']), len(np.array(data[0]['test'])), axis=0),
+            np.split(np.array(targets[gidx]['test']), len(np.array(targets[gidx]['test'])), axis=0))]
+
+        mask_dict['train'] += [torch.from_numpy(x) for x in np.split(np.array(masks[gidx]['train']),
+                                                                    len(np.array(masks[gidx]['train'])), axis=0)]
+        mask_dict['valid'] += [torch.from_numpy(x) for x in np.split(np.array(masks[gidx]['valid']),
+                                                                    len(np.array(masks[gidx]['valid'])), axis=0)]
+        mask_dict['test'] += [torch.from_numpy(x) for x in np.split(np.array(masks[gidx]['test']),
+                                                                   len(np.array(masks[gidx]['test'])), axis=0)]
+
+    # PyTorch summarywriter with a few bells and whistles
+    exp = Experiment(save_dir="../data/models/tgcn/")
+
+    # pass in experiment for automatic tensorboard logging.
+    trainer = Trainer(experiment=exp, max_nb_epochs=45, train_percent_check=1)
+
+    model = TGCN(input_dim=29, hidden_dim=29, layer_dim=2, output_dim=1, adjs=adjs,
+                 datasets=datasets, masks=mask_dict)
+
+    trainer.fit(model)
