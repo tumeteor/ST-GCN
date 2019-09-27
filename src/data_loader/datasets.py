@@ -21,8 +21,9 @@ class DatasetBuilder:
             range(0, 24)
         ]
                                  )
-        self.ienc = OrdinalEncoder(categories=[[5., 10., 20., 30., 40., 50., 60.0, 70.0, 80.0, 90.0, 100.0, 110.0, 120.0],
-                                               [1., 2., 3., 4., 5.]])
+        self.ienc = OrdinalEncoder(
+            categories=[[5., 10., 20., 30., 40., 50., 60.0, 70.0, 80.0, 90.0, 100.0, 110.0, 120.0],
+                        [1., 2., 3., 4., 5.]])
 
         self.g = g
 
@@ -44,7 +45,7 @@ class DatasetBuilder:
             data_ord.append(self._arc_features(node)[1])
         return self.enc.fit_transform(data), self.ienc.fit_transform(data_ord)
 
-    def _build_dataset_to_numpy_tensor(self, from_, to, df=None, id_to_idx=None, L=None):
+    def _build_dataset_to_numpy_tensor(self, from_, to, df=None, id_to_idx=None):
         """
         We extract features from speed (actual speed, whether speed is missing)
         and combine with static features.
@@ -53,15 +54,12 @@ class DatasetBuilder:
         """
         dataset = list()
         for t in range(from_, to):
-            cat_features_at_t = [['primary', 'asphalt', 'MajorRoad', t % 24]] * len(L.nodes)
-            ord_features_at_t = [[50.0, 4]] * len(L.nodes)
-            speed_features_at_t = [50] * len(L.nodes)
-            speed_is_nan_feature = [1] * len(L.nodes)
+            cat_features_at_t = [['primary', 'asphalt', 'MajorRoad', t % 24]] * len(df)
+            ord_features_at_t = [[50.0, 4]] * len(df)
+            speed_features_at_t = [50] * len(df)
+            speed_is_nan_feature = [1] * len(df)
             for _, row in df.iterrows():
                 arc = (int(row['from_node']), int(row['to_node']))
-                if arc not in id_to_idx:
-                    continue
-
                 cat_features_at_t[id_to_idx[arc]], ord_features_at_t[id_to_idx[arc]] = \
                     self._arc_features(arc, timestep=t)
                 speed_features_at_t[id_to_idx[arc]] = row[str(t)]
@@ -71,7 +69,6 @@ class DatasetBuilder:
                                            np.array(speed_is_nan_feature).reshape(-1, 1),
                                            self.ienc.fit_transform(ord_features_at_t),
                                            self.enc.fit_transform(cat_features_at_t).toarray()], axis=1))
-        print(f"dataset length: {len(dataset)}")
         return np.stack(dataset, axis=0)
 
     def _generate_dataset_concat(self, X, X_masked, num_timesteps_input, num_timesteps_output):
@@ -96,6 +93,7 @@ class DatasetBuilder:
         features, target = [], []
         mask = []
         for i, j in indices:
+            # num_vertices, num_features, num_timesteps
             features.append(X[:, :, i: i + num_timesteps_input])
             target.append(X[:, 0, i + num_timesteps_input: j])
             mask.append(X_masked[:, 0, i + num_timesteps_input: j])
@@ -103,6 +101,7 @@ class DatasetBuilder:
         return np.array(features), np.array(target), torch.stack(mask).numpy()
 
     def train_validation_test_split(self, X, X_filled, X_masked, look_back=29, look_ahead=1, split_ratio=[0.7, 0.9]):
+        # num_vertices, num_features, num_timesteps
         split_line1 = int(X.shape[2] * split_ratio[0])
         split_line2 = int(X.shape[2] * split_ratio[1])
         train_original_data = X_filled[:, :, :split_line1]
@@ -134,10 +133,29 @@ class DatasetBuilder:
         speed_features = np.array([s for s in speed_features if not math.isnan(s)]).reshape(-1, 1)
         self.scaler.fit(speed_features)
 
-    def load_batch_file(self, file_path, L, TOTAL_T_STEPS=2263):
+    def _remove_non_existing_edges_from_df(self, df):
+        for idx, row in df.iterrows():
+            arc = (int(row['from_node']), int(row['to_node']))
+            if not self.g.has_edge(arc[0], arc[1]) or not self.g.has_node(arc[0]) or not self.g.has_node(arc[1]):
+                df.drop(idx, inplace=True)
+        return df
+
+    def load_speed_data(self, file_path):
         file_path = glob.glob(f'{file_path}/*snappy.parquet')
         pf = ParquetFile(file_path)
         df = pf.to_pandas()
+        df = self._remove_non_existing_edges_from_df(df)
+        edges = [tuple((int(x[0]), int(x[1]))) for x in df[['from_node', 'to_node']].values]
+        return edges, df
+
+    @staticmethod
+    def _get_masks(X):
+        # Build mask tensor
+        X_masked = torch.where(torch.isnan(torch.from_numpy(X)), torch.tensor([0]), torch.tensor([1]))
+        X_masked = X_masked.bool()
+        return X_masked
+
+    def construct_batches(self, df, L, TOTAL_T_STEPS=2263):
         id_to_idx = {}
 
         for idx, id_ in enumerate(L.nodes()):
@@ -149,32 +167,29 @@ class DatasetBuilder:
         # df_filled = df_filled.interpolate(method='nearest', axis=1)
         df_filled = df_filled.fillna(df_filled.mean())
         df_filled = df_filled.fillna(13.8)
-        print(df_filled)
 
-        print(f"number of columns: {len(df.columns)}")
         SPEED_COLUMNS = list(map(str, range(TOTAL_T_STEPS)))
         df.columns = ['from_node', 'to_node'] + SPEED_COLUMNS
         df_filled.columns = SPEED_COLUMNS
         df_filled['from_node'] = df['from_node']
         df_filled['to_node'] = df['to_node']
 
+        df_filled = df_filled[['from_node', 'to_node'] + SPEED_COLUMNS[TOTAL_T_STEPS - 400:]]
+        df = df[['from_node', 'to_node'] + SPEED_COLUMNS[TOTAL_T_STEPS - 400:]]
+
         X = self._build_dataset_to_numpy_tensor(df=df,
                                                 id_to_idx=id_to_idx,
-                                                from_=0,
-                                                to=TOTAL_T_STEPS,
-                                                L=L)
+                                                from_=TOTAL_T_STEPS-400,
+                                                to=TOTAL_T_STEPS)
         X_filled = self._build_dataset_to_numpy_tensor(df=df_filled,
                                                        id_to_idx=id_to_idx,
-                                                       from_=0,
-                                                       to=TOTAL_T_STEPS,
-                                                       L=L)
+                                                       from_=TOTAL_T_STEPS-400,
+                                                       to=TOTAL_T_STEPS)
 
         X = np.moveaxis(X, source=(0, 1, 2), destination=(2, 0, 1))
         X_filled = np.moveaxis(X_filled, source=(0, 1, 2), destination=(2, 0, 1))
-
         # Build mask tensor
-        X_masked = torch.where(torch.isnan(torch.from_numpy(X)), torch.tensor([0]), torch.tensor([1]))
-        X_masked = X_masked.bool()
+        X_masked = self._get_masks(X)
 
         data, target, mask = self.train_validation_test_split(X=X, X_filled=X_filled, X_masked=X_masked)
 

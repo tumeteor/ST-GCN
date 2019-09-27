@@ -1,5 +1,4 @@
 import os
-import torch
 
 import h5py
 import numpy as np
@@ -43,15 +42,17 @@ if __name__ == "__main__":
     adjs = list()
     masks = list()
     for cluster_id in mapping:
-        adj, L = get_adj_from_subgraph(cluster_id=cluster_id, g=g, mapping=mapping)
-        if L.number_of_nodes() < 100: continue
+        if cluster_id != 95 and cluster_id != 96: continue
+        db = DatasetBuilder(g=g)
+        edges, df = db.load_speed_data(file_path=f"data/clusters/cluster_id={cluster_id}/")
+        if len(edges) < 100: continue
+
+        adj, L = get_adj_from_subgraph(cluster_id=cluster_id, g=g, edges=edges)
         # cache them in h5
         if os.path.exists(f"data/cache/cluster_id={cluster_id}.hdf5"):
             h = h5py.File(f"data/cache/cluster_id={cluster_id}.hdf5", "r")
         else:
-            db = DatasetBuilder(g=g)
-
-            _data, target, mask = db.load_batch_file(f"data/clusters/cluster_id={cluster_id}/", L=L)
+            _data, target, mask = db.construct_batches(df, L=L)
             h = h5py.File(f"data/cache/cluster_id={cluster_id}.hdf5", "w")
             data_group = h.create_group(name="data")
             for k, v in _data.items():
@@ -67,29 +68,27 @@ if __name__ == "__main__":
         targets.append(h["target"])
         masks.append(h["mask"])
         adjs.append(adj)
-    print(f"data length: {len(data)}")
-    datasets = dict()
-    mask_dict = dict()
+    datasets = {"train": list(), "valid": list(), "test": list()}
+    mask_dict = {"train": list(), "valid": list(), "test": list()}
 
-    print(f"AAA: {np.array(data[0]['train']).shape}")
-    for gidx in range(len(data)):
-        datasets['train'] += [(torch.from_numpy(x), torch.from_numpy(t)) for x, t in zip(
+    for gidx in range(len(adjs)):
+        datasets['train'] += [(x, t) for x, t in zip(
             np.split(np.array(data[gidx]['train']), len(np.array(data[gidx]['train'])), axis=0),
             np.split(np.array(targets[gidx]['train']), len(np.array(targets[gidx]['train'])), axis=0))]
 
-        datasets['valid'] += [(torch.from_numpy(x), torch.from_numpy(t)) for x, t in zip(
+        datasets['valid'] += [(x, t) for x, t in zip(
             np.split(np.array(data[gidx]['valid']), len(np.array(data[gidx]['valid'])), axis=0),
             np.split(np.array(targets[gidx]['valid']), len(np.array(targets[gidx]['valid'])), axis=0))]
 
-        datasets['test'] += [(torch.from_numpy(x), torch.from_numpy(t)) for x, t in zip(
+        datasets['test'] += [(x, t) for x, t in zip(
             np.split(np.array(data[gidx]['test']), len(np.array(data[0]['test'])), axis=0),
             np.split(np.array(targets[gidx]['test']), len(np.array(targets[gidx]['test'])), axis=0))]
 
-        mask_dict['train'] += [torch.from_numpy(x) for x in np.split(np.array(masks[gidx]['train']),
+        mask_dict['train'] += [x for x in np.split(np.array(masks[gidx]['train']),
                                                                     len(np.array(masks[gidx]['train'])), axis=0)]
-        mask_dict['valid'] += [torch.from_numpy(x) for x in np.split(np.array(masks[gidx]['valid']),
+        mask_dict['valid'] += [x for x in np.split(np.array(masks[gidx]['valid']),
                                                                     len(np.array(masks[gidx]['valid'])), axis=0)]
-        mask_dict['test'] += [torch.from_numpy(x) for x in np.split(np.array(masks[gidx]['test']),
+        mask_dict['test'] += [x for x in np.split(np.array(masks[gidx]['test']),
                                                                    len(np.array(masks[gidx]['test'])), axis=0)]
 
     # PyTorch summarywriter with a few bells and whistles
