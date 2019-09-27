@@ -37,11 +37,12 @@ def read_cluster_mapping():
     return mapping
 
 
-def get_adj_from_subgraph(g, cluster_id, mapping):
-    print(f"cluster_id: {cluster_id}")
-    nodes = mapping.get(cluster_id)
-    L = nx.line_graph(nx.DiGraph(g).subgraph(nodes))
-    print(f"number of nodes/segments: {len(L.nodes)}")
-    adj = nx.to_scipy_sparse_matrix(L, format="coo")
+def get_adj_from_subgraph(g, cluster_id, edges):
+    print(f"cluster_id: {cluster_id}, number of edges: {len(edges)}")
+
+    L = nx.line_graph(nx.DiGraph(g)).subgraph(edges)
+
+    adj = nx.to_scipy_sparse_matrix(L, format="coo", nodelist=edges)
+    print(f"number of edges: {L.number_of_nodes()}")
 
     return adj, L

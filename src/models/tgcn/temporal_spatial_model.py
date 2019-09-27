@@ -106,21 +106,21 @@ class TGCN(pl.LightningModule):
     def tng_dataloader(self):
         ds = CustomTensorDataset(self.datasets['train'], adj_list=self.adjs,
                                  mask_list=self.masks['train'],
-                                 time_steps=len(self.datasets['train']))
+                                 time_steps=251)
         return DataLoader(ds, batch_size=1, shuffle=False)
 
     @pl.data_loader
     def val_dataloader(self):
         ds = CustomTensorDataset(self.datasets['valid'], adj_list=self.adjs,
                                  mask_list=self.masks['valid'],
-                                 time_steps=len(self.datasets['valid']))
+                                 time_steps=51)
         return DataLoader(ds, batch_size=1, shuffle=False)
 
     @pl.data_loader
     def test_dataloader(self):
         ds = CustomTensorDataset(self.datasets['test'], adj_list=self.adjs,
                                  mask_list=self.masks['test'],
-                                 time_steps=len(self.datasets['test']))
+                                 time_steps=11)
         return DataLoader(ds, batch_size=1, shuffle=False)
 
     def validation_step(self, batch, batch_nb):
@@ -131,12 +131,7 @@ class TGCN(pl.LightningModule):
         y = y.squeeze(dim=0).float()
         x = x.permute(0, 1, 3, 2)
 
-        print(f"x shape: {x.shape}")
-        print(f"y shape: {y.shape}")
-        print(f"adj shape: {adj.shape}")
-
         y_hat = self.forward(x, adj).squeeze(dim=0)
-        print(f"CCC: {y_hat.shape}")
         y_hat = y_hat.masked_select(mask)
         y = y.masked_select(mask)
         print(f"y_hat: {y_hat}")
@@ -144,19 +139,26 @@ class TGCN(pl.LightningModule):
         # convert to np.array for inverse transformation
         # y_hat = scaler.inverse_transform(np.array(y_hat).reshape(-1, 1))
         # y = scaler.inverse_transform(np.array(y).reshape(-1, 1))
-
+        no_gt = False
+        if mask.sum().item() == 0:
+            no_gt = True
         _mae = torch.FloatTensor(np.abs(y_hat - y)).sum() / mask.sum()
-        print(f"y shape: {y.shape}")
-        print(f"y_hat shape: {y_hat.shape}")
-
         _rmse = torch.FloatTensor([rmse(actual=y.numpy(), predicted=y_hat.numpy())])
         _smape = torch.FloatTensor([smape(actual=y.numpy(), predicted=y_hat.numpy())])
+        _no_gt = torch.BoolTensor([no_gt])
         return {'val_mae': _mae,
                 'val_rmse': _rmse,
-                'val_smape': _smape}
+                'val_smape': _smape,
+                'val_no_gt': _no_gt}
 
     def validation_end(self, outputs):
         # OPTIONAL
+        outputs = [x for x in outputs if not x['val_no_gt'].item()]
+        if len(outputs) == 0:
+            return {'avg_val_mae': torch.FloatTensor([-1]),
+                    'avg_rmse_loss':torch.FloatTensor([-1]),
+                    'avg_smape_loss': torch.FloatTensor([-1])
+                    }
         avg_mae_loss = torch.stack([x['val_mae'] for x in outputs]).mean()
         avg_rmse_loss = torch.stack([x['val_rmse'] for x in outputs]).mean()
         avg_smape_loss = torch.stack([x['val_smape'] for x in outputs]).mean()
