@@ -22,20 +22,32 @@ class DatasetBuilder:
         ]
                                  )
         self.ienc = OrdinalEncoder(
-            categories=[[5., 10., 20., 30., 40., 50., 60.0, 70.0, 80.0, 90.0, 100.0, 110.0, 120.0],
+            categories=[[5., 10., 20., 30., 40., 50., 60.0, 70.0, 80.0, 100.0, 120.0],
                         [1., 2., 3., 4., 5.]])
 
         self.g = g
 
     def _arc_features(self, arc, timestep):
         arc = self.g[arc[0]][arc[1]]
+        try:
+            max_speed_feature = float(arc['data'].metadata.get('maxspeed', '50'))
+            max_speed_feature = min([5., 10., 20., 30., 40., 50., 60.0, 70.0, 80.0, 100.0, 120.0],
+                                    key=lambda x: abs(x - max_speed_feature))
+        except:
+            max_speed_feature = 50.
+        try:
+            num_lanes_feature = int(arc['data'].metadata.get('lanes', '1'))
+            num_lanes_feature = min([1., 2., 3., 4., 5.],
+                                    key=lambda x: abs(x - num_lanes_feature))
+        except:
+            num_lanes_feature = 1
+
         return [
                    arc['data'].metadata['highway'],
                    arc['data'].metadata.get('surface', 'no_sur'),
                    arc['data'].roadClass.name,
                    timestep % 24
-               ], [float(arc['data'].metadata.get('maxspeed', '50')),
-                   int(arc['data'].metadata.get('lanes', '1'))]
+               ], [max_speed_feature, num_lanes_feature]
 
     def _construct_features(self, L):
         data = list()
@@ -179,11 +191,11 @@ class DatasetBuilder:
 
         X = self._build_dataset_to_numpy_tensor(df=df,
                                                 id_to_idx=id_to_idx,
-                                                from_=TOTAL_T_STEPS-400,
+                                                from_=TOTAL_T_STEPS - 400,
                                                 to=TOTAL_T_STEPS)
         X_filled = self._build_dataset_to_numpy_tensor(df=df_filled,
                                                        id_to_idx=id_to_idx,
-                                                       from_=TOTAL_T_STEPS-400,
+                                                       from_=TOTAL_T_STEPS - 400,
                                                        to=TOTAL_T_STEPS)
 
         X = np.moveaxis(X, source=(0, 1, 2), destination=(2, 0, 1))
