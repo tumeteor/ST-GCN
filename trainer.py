@@ -42,32 +42,20 @@ if __name__ == "__main__":
     adjs = list()
     masks = list()
     for cluster_id in mapping:
-        if cluster_id != 27 and cluster_id != 28:
-            continue
         db = DatasetBuilder(g=g)
         edges, df = db.load_speed_data(file_path=f"data/clusters/cluster_id={cluster_id}/")
         if len(edges) < 100: continue
 
-        adj, L = get_adj_from_subgraph(cluster_id=cluster_id, g=g, edges=edges)
+        adj, _ = get_adj_from_subgraph(cluster_id=cluster_id, g=g, edges=edges)
+        adjs.append(adj)
+
         # cache them in h5
         if not os.path.exists(f"data/cache/cluster_id={cluster_id}.hdf5"):
-            _data, target, mask = db.construct_batches(df, L=L)
-            with h5py.File(f"data/cache/cluster_id={cluster_id}.hdf5", "w") as h:
-                data_group = h.create_group(name="data")
-                for k, v in _data.items():
-                    data_group.create_dataset(k, data=v, chunks=True, compression='gzip')
-                target_group = h.create_group(name="target")
-                for k, v in target.items():
-                    target_group.create_dataset(k, data=v, chunks=True, compression='gzip')
-                mask_group = h.create_group(name="mask")
-                for k, v in mask.items():
-                    mask_group.create_dataset(k, data=v, chunks=True, compression='gzip')
-
-        with h5py.File(f"data/cache/cluster_id={cluster_id}.hdf5", "r") as h:
-            data.append(h["data"])
-            targets.append(h["target"])
-            masks.append(h["mask"])
-            adjs.append(adj)
+            continue
+        h = h5py.File(f"data/cache/cluster_id={cluster_id}.hdf5", "r")
+        data.append(h["data"])
+        targets.append(h["target"])
+        masks.append(h["mask"])
 
     datasets = {"train": list(), "valid": list(), "test": list()}
     mask_dict = {"train": list(), "valid": list(), "test": list()}
