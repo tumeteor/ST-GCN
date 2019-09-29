@@ -45,7 +45,7 @@ if __name__ == "__main__":
         adj, L = get_adj_from_subgraph(cluster_id=cluster_id, g=g, edges=edges)
         # cache them in h5
         if not os.path.exists(f"data/cache/cluster_id={cluster_id}.hdf5"):
-            _data, target, mask = db.construct_batches(df, L=L)
+            _data, target, mask = db.construct_batches(df, L=L, memmap=True)
             with h5py.File(f"data/cache/cluster_id={cluster_id}.hdf5", "w") as h:
                 data_group = h.create_group(name="data")
                 for k, v in _data.items():
