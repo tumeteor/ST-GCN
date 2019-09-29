@@ -1,4 +1,5 @@
 import glob
+import tempfile
 
 from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
 import numpy as np
@@ -66,7 +67,7 @@ class DatasetBuilder:
         :return:
              np.ndarray: dataset tensor of shape [num_time_steps, num_nodes, num_features]
         """
-        dataset = np.empty([to - from_, len(df), 53])
+        dataset = np.empty([to - from_, len(df), self.NUM_FEATS])
         for t in range(from_, to):
             cat_features_at_t = [['primary', 'asphalt', 'MajorRoad', t % 24]] * len(df)
             ord_features_at_t = [[50.0, 4]] * len(df)
@@ -80,13 +81,12 @@ class DatasetBuilder:
                 if np.isnan(row[str(t)]):
                     speed_is_nan_feature[id_to_idx[arc]] = 0
             dataset[t - from_] = np.concatenate([np.array(speed_features_at_t).reshape(-1, 1),
-                                           np.array(speed_is_nan_feature).reshape(-1, 1),
-                                           self.ienc.fit_transform(ord_features_at_t),
-                                           self.enc.fit_transform(cat_features_at_t).toarray()], axis=1)
+                                                 np.array(speed_is_nan_feature).reshape(-1, 1),
+                                                 self.ienc.fit_transform(ord_features_at_t),
+                                                 self.enc.fit_transform(cat_features_at_t).toarray()], axis=1)
         return dataset
 
-    @staticmethod
-    def _generate_dataset_concat(X, X_masked, num_timesteps_input, num_timesteps_output):
+    def _generate_dataset_concat(self, X, X_masked, num_timesteps_input, num_timesteps_output, memmap=False):
         """
         Takes node features for the graph and divides them into multiple samples
         along the time-axis by sliding a window of size (num_timesteps_input+
@@ -103,18 +103,33 @@ class DatasetBuilder:
         indices = [(i, i + (num_timesteps_input + num_timesteps_output)) for i
                    in range(X.shape[2] - (
                     num_timesteps_input + num_timesteps_output) + 1)]
-
         # Save samples
-        features, target, mask = [], [], []
-        for i, j in indices:
+        if memmap:
+            with tempfile.NamedTemporaryFile() as ff:
+                features = np.memmap(filename=ff, shape=(len(indices), len(X), self.NUM_FEATS,
+                                                         num_timesteps_input), dtype=np.double)
+            with tempfile.NamedTemporaryFile() as ft:
+                target = np.memmap(filename=ft, shape=(len(indices), len(X), num_timesteps_output),
+                                   dtype=np.double)
+            with tempfile.NamedTemporaryFile() as fm:
+                mask = np.memmap(filename=fm, shape=(len(indices), len(X), num_timesteps_output),
+                                 dtype=np.double)
+
+        else:
+            features = np.empty([len(indices), len(X), self.NUM_FEATS, num_timesteps_input], dtype=np.double)
+            target = np.empty([len(indices), len(X), num_timesteps_output], dtype=np.double)
+            mask = np.empty([len(indices), len(X), num_timesteps_output], dtype=np.double)
+
+        for k, (i, j) in enumerate(indices):
             # num_vertices, num_features, num_timesteps
-            features.append(X[:, :, i: i + num_timesteps_input])
-            target.append(X[:, 0, i + num_timesteps_input: j])
-            mask.append(X_masked[:, 0, i + num_timesteps_input: j])
+            features[k] = X[:, :, i: i + num_timesteps_input]
+            target[k] = X[:, 0, i + num_timesteps_input: j]
+            mask[k] = X_masked[:, 0, i + num_timesteps_input: j]
 
         return np.array(features), np.array(target), np.array(mask)
 
-    def train_validation_test_split(self, X, X_filled, X_masked, look_back=29, look_ahead=1, split_ratio=None):
+    def train_validation_test_split(self, X, X_filled, X_masked, look_back=29, look_ahead=1, split_ratio=None,
+                                    memmap=False):
         # num_vertices, num_features, num_timesteps
         if split_ratio is None:
             split_ratio = [0.7, 0.9]
@@ -131,13 +146,16 @@ class DatasetBuilder:
         # num_samples, num_nodes, num_timesteps, num_features
         training_data, training_target, train_mask = self._generate_dataset_concat(train_original_data, train_mask,
                                                                                    num_timesteps_input=look_back,
-                                                                                   num_timesteps_output=look_ahead)
+                                                                                   num_timesteps_output=look_ahead,
+                                                                                   memmap=memmap)
         valid_data, valid_target, valid_mask = self._generate_dataset_concat(val_original_data, valid_mask,
                                                                              num_timesteps_input=look_back,
-                                                                             num_timesteps_output=look_ahead)
+                                                                             num_timesteps_output=look_ahead,
+                                                                             memmap=memmap)
         test_data, test_target, test_mask = self._generate_dataset_concat(test_original_data, test_mask,
                                                                           num_timesteps_input=look_back,
-                                                                          num_timesteps_output=look_ahead)
+                                                                          num_timesteps_output=look_ahead,
+                                                                          memmap=memmap)
 
         data = {'train': training_data, 'valid': valid_data, 'test': test_data}
         target = {'train': training_target, 'valid': valid_target, 'test': test_target}
@@ -159,7 +177,7 @@ class DatasetBuilder:
         edges = [tuple((int(x[0]), int(x[1]))) for x in df[['from_node', 'to_node']].values]
         return edges, df
 
-    def construct_batches(self, df, L, TOTAL_T_STEPS=2263):
+    def construct_batches(self, df, L, TOTAL_T_STEPS=2263, memmap=False):
         id_to_idx = {}
 
         for idx, id_ in enumerate(L.nodes()):
@@ -195,6 +213,6 @@ class DatasetBuilder:
         # Build mask tensor
         X_masked = get_mask_from_numpy_tensor(X)
 
-        data, target, mask = self.train_validation_test_split(X=X, X_filled=X_filled, X_masked=X_masked)
+        data, target, mask = self.train_validation_test_split(X=X, X_filled=X_filled, X_masked=X_masked, memmap=memmap)
 
         return data, target, mask
