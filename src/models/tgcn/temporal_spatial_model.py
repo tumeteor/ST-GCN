@@ -15,7 +15,7 @@ torch.manual_seed(0)
 
 class TGCN(pl.LightningModule):
     def __init__(self, input_dim, hidden_dim, layer_dim, output_dim, adjs, adj_norm=True,
-                 datasets=None, dropout=0.5, masks=None):
+                 datasets=None, dropout=0.5):
         super(TGCN, self).__init__()
 
         # Hidden dimensions
@@ -31,7 +31,6 @@ class TGCN(pl.LightningModule):
         self.adjs = [self._transform_adj(_adj) for _adj in adjs] if adj_norm else adjs
         self.dropout = nn.Dropout(dropout)
 
-        self.masks = masks
 
         self.opt = torch.optim.Adam(self.parameters(), lr=0.01, weight_decay=0.015)
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -104,22 +103,22 @@ class TGCN(pl.LightningModule):
 
     @pl.data_loader
     def tng_dataloader(self):
-        ds = CustomTensorDataset(self.datasets['train'], adj_list=self.adjs,
-                                 mask_list=self.masks['train'],
+        ds = CustomTensorDataset(self.datasets, adj_list=self.adjs,
+                                 mode='train',
                                  time_steps=251)
         return DataLoader(ds, batch_size=1, shuffle=False)
 
     @pl.data_loader
     def val_dataloader(self):
-        ds = CustomTensorDataset(self.datasets['valid'], adj_list=self.adjs,
-                                 mask_list=self.masks['valid'],
+        ds = CustomTensorDataset(self.datasets, adj_list=self.adjs,
+                                 mode='valid',
                                  time_steps=51)
         return DataLoader(ds, batch_size=1, shuffle=False)
 
     @pl.data_loader
     def test_dataloader(self):
-        ds = CustomTensorDataset(self.datasets['test'], adj_list=self.adjs,
-                                 mask_list=self.masks['test'],
+        ds = CustomTensorDataset(self.datasets, adj_list=self.adjs,
+                                 mode='test',
                                  time_steps=11)
         return DataLoader(ds, batch_size=1, shuffle=False)
 
