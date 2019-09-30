@@ -1,7 +1,5 @@
 import os
 
-import h5py
-import numpy as np
 from test_tube import Experiment
 from pytorch_lightning import Trainer
 import argparse
@@ -39,7 +37,8 @@ if __name__ == "__main__":
     cluster_idx_ids = dict()
     datasets = list()
     adjs = list()
-    for cluster_idx, cluster_id in enumerate(mapping):
+    cluster_idx = 0
+    for cluster_id in mapping:
         db = DatasetBuilder(g=g)
         edges, df = db.load_speed_data(file_path=f"data/clusters/cluster_id={cluster_id}/")
         if len(edges) < 100: continue
@@ -49,17 +48,27 @@ if __name__ == "__main__":
 
         # cache them in h5
         if not os.path.exists(f"data/cache/cluster_id={cluster_id}.hdf5"):
+            # some clusters do not exist in the cache folder, ignore them.
             continue
         datasets.append("data/cache/cluster_id={cluster_id}.hdf5")
         cluster_idx_ids[cluster_idx] = cluster_id
+        cluster_idx += 1
 
 
 
     # PyTorch summarywriter with a few bells and whistles
-    exp = Experiment(save_dir="../data/models/tgcn/")
+    exp = Experiment(save_dir='data/models/tgcn/')
+    checkpoint_callback = ModelCheckpoint(
+        filepath='data/models/tgcn/checkpoints/',
+        save_best_only=True,
+        verbose=True,
+        monitor='avg_val_mae',
+        mode='min'
+    )
 
     # pass in experiment for automatic tensorboard logging.
-    trainer = Trainer(experiment=exp, max_nb_epochs=45, train_percent_check=1)
+    trainer = Trainer(experiment=exp, max_nb_epochs=45, train_percent_check=1,
+                      checkpoint_callback=checkpoint_callback)
 
     model = TGCN(input_dim=29, hidden_dim=29, layer_dim=2, output_dim=1, adjs=adjs,
                  datasets=datasets)
