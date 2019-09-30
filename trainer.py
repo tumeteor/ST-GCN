@@ -36,12 +36,10 @@ if __name__ == "__main__":
     logging.info("\u2705 Done loading Jurbey graph.")
 
     mapping = read_cluster_mapping()
-
-    data = list()
-    targets = list()
+    cluster_idx_ids = dict()
+    datasets = list()
     adjs = list()
-    masks = list()
-    for cluster_id in mapping:
+    for cluster_idx, cluster_id in enumerate(mapping):
         db = DatasetBuilder(g=g)
         edges, df = db.load_speed_data(file_path=f"data/clusters/cluster_id={cluster_id}/")
         if len(edges) < 100: continue
@@ -52,33 +50,10 @@ if __name__ == "__main__":
         # cache them in h5
         if not os.path.exists(f"data/cache/cluster_id={cluster_id}.hdf5"):
             continue
-        h = h5py.File(f"data/cache/cluster_id={cluster_id}.hdf5", "r")
-        data.append(h["data"])
-        targets.append(h["target"])
-        masks.append(h["mask"])
+        datasets.append("data/cache/cluster_id={cluster_id}.hdf5")
+        cluster_idx_ids[cluster_idx] = cluster_id
 
-    datasets = {"train": list(), "valid": list(), "test": list()}
-    mask_dict = {"train": list(), "valid": list(), "test": list()}
 
-    for gidx in range(len(adjs)):
-        datasets['train'] += [(x, t) for x, t in zip(
-            np.split(np.array(data[gidx]['train']), len(np.array(data[gidx]['train'])), axis=0),
-            np.split(np.array(targets[gidx]['train']), len(np.array(targets[gidx]['train'])), axis=0))]
-
-        datasets['valid'] += [(x, t) for x, t in zip(
-            np.split(np.array(data[gidx]['valid']), len(np.array(data[gidx]['valid'])), axis=0),
-            np.split(np.array(targets[gidx]['valid']), len(np.array(targets[gidx]['valid'])), axis=0))]
-
-        datasets['test'] += [(x, t) for x, t in zip(
-            np.split(np.array(data[gidx]['test']), len(np.array(data[0]['test'])), axis=0),
-            np.split(np.array(targets[gidx]['test']), len(np.array(targets[gidx]['test'])), axis=0))]
-
-        mask_dict['train'] += [x for x in np.split(np.array(masks[gidx]['train']),
-                                                                    len(np.array(masks[gidx]['train'])), axis=0)]
-        mask_dict['valid'] += [x for x in np.split(np.array(masks[gidx]['valid']),
-                                                                    len(np.array(masks[gidx]['valid'])), axis=0)]
-        mask_dict['test'] += [x for x in np.split(np.array(masks[gidx]['test']),
-                                                                   len(np.array(masks[gidx]['test'])), axis=0)]
 
     # PyTorch summarywriter with a few bells and whistles
     exp = Experiment(save_dir="../data/models/tgcn/")
@@ -87,6 +62,6 @@ if __name__ == "__main__":
     trainer = Trainer(experiment=exp, max_nb_epochs=45, train_percent_check=1)
 
     model = TGCN(input_dim=29, hidden_dim=29, layer_dim=2, output_dim=1, adjs=adjs,
-                 datasets=datasets, masks=mask_dict)
+                 datasets=datasets)
 
     trainer.fit(model)
