@@ -24,13 +24,12 @@ class TGCN(pl.LightningModule):
         # Number of hidden layers
         self.layer_dim = layer_dim
 
-        self.gc_lstm = GCLSTMCell(input_dim, hidden_dim)
+        self.gc_lstm = GCLSTMCell(input_dim, hidden_dim, dropout)
 
         self.fc = nn.Linear(hidden_dim, output_dim)
         self.datasets = datasets
         self.adjs = [self._transform_adj(_adj) for _adj in adjs] if adj_norm else adjs
         self.cluster_idx_ids = cluster_idx_ids
-        self.dropout = nn.Dropout(dropout)
 
         self.opt = torch.optim.Adam(self.parameters(), lr=0.01, weight_decay=0.015)
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -127,12 +126,7 @@ class TGCN(pl.LightningModule):
 
     def validation_step(self, batch, batch_nb):
         # batch shape: torch.Size([1, 6163, 26, 10])
-        print(len(batch))
         x, y, adj, mask = batch
-        print(x.shape)
-        print(y.shape)
-        print(adj.shape)
-        print(mask.shape)
 
         adj = dense_to_sparse(adj.to_dense().squeeze(dim=0))
         x = x.squeeze(dim=0)

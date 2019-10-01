@@ -11,7 +11,7 @@ torch.manual_seed(0)
 
 class GCLSTMCell(nn.Module):
 
-    def __init__(self, input_size, hidden_size, bias=True):
+    def __init__(self, input_size, hidden_size, bias=True, dropout=0.5):
         super(GCLSTMCell, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -19,10 +19,11 @@ class GCLSTMCell(nn.Module):
             self.bias = Parameter(torch.FloatTensor(hidden_size))
         else:
             self.register_parameter('bias', None)
-        self.x2h = nn.Linear(input_size, 4 * hidden_size, bias=bias)
+        self.x2h = nn.Linear(hidden_size, 4 * hidden_size, bias=bias)
         self.h2h = nn.Linear(hidden_size, 4 * hidden_size, bias=bias)
         self.gcn_weight = Parameter(torch.FloatTensor(input_size, hidden_size))
-
+        self.batch_norm = nn.BatchNorm1d(hidden_size)
+        self.dropout = dropout
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -36,12 +37,12 @@ class GCLSTMCell(nn.Module):
         support = torch.mm(x.float(), self.gcn_weight)
         x = torch.spmm(adj, support)
         x = F.relu(x)
-        x = F.dropout(x, training=self.training)
+        x = F.dropout(x, training=self.training, p=self.dropout)
         if self.bias is not None:
             x = x + self.bias
-
+        # apply batch-norm over all nodes (in the batch)
+        x = self.batch_norm(x)
         x = x.view(-1, x.size(1))
-
         gates = self.x2h(x) + self.h2h(hx)
 
         gates = gates.squeeze()
