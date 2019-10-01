@@ -5,7 +5,7 @@ import argparse
 import json
 import logging
 
-from src.config import Config
+from src.configs.db_config import Config
 from src.data_loader.reader import read_jurbey, read_cluster_mapping, get_adj_from_subgraph
 from src.logs import get_logger_settings, setup_logging
 from src.data_loader.datasets import DatasetBuilder
