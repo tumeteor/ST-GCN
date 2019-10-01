@@ -41,7 +41,7 @@ if __name__ == "__main__":
     cluster_idx = 0
     for cluster_id in mapping:
         # cache them in h5
-        if not os.path.exists(f"data/cache/cluster_id={cluster_id}.hdf5"):
+        if not os.path.exists(f"data/test_cache/cluster_id={cluster_id}.hdf5"):
                 # some clusters do not exist in the cache folder, ignore them.
                 continue
         db = DatasetBuilder(g=g)
@@ -53,7 +53,7 @@ if __name__ == "__main__":
         adj, _ = get_adj_from_subgraph(cluster_id=cluster_id, g=g, edges=edges)
         adjs.append(adj)
 
-        datasets.append("data/cache/cluster_id={cluster_id}.hdf5")
+        datasets.append("data/test_cache/cluster_id={cluster_id}.hdf5")
         cluster_idx_ids[cluster_idx] = cluster_id
         cluster_idx += 1
 
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     trainer = Trainer(experiment=exp, max_nb_epochs=45, train_percent_check=1,
                       checkpoint_callback=checkpoint_callback)
 
-    model = TGCN(input_dim=29, hidden_dim=29, layer_dim=2, output_dim=1, adjs=adjs,
+    model = TGCN(input_dim=29, hidden_dim=64, layer_dim=2, output_dim=1, adjs=adjs,
                  datasets=datasets, cluster_idx_ids=cluster_idx_ids)
 
     trainer.fit(model)

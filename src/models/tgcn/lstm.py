@@ -9,10 +9,10 @@ import pytorch_lightning as pl
 
 class LSTMs(pl.LightningModule):
     def __init__(self, input_dim, hidden_dim=32, layers=2,
-                 datasets=None, targets=None, dropout=0.5, mask=None):
+                 datasets=None, targets=None, mask=None):
         super().__init__()
 
-        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=layers, dropout=dropout,
+        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=layers,
                             batch_first=True)
         self.linear = nn.Linear(hidden_dim, 1)
         self.look_back = input_dim
