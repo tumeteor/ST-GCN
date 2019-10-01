@@ -15,7 +15,7 @@ torch.manual_seed(0)
 
 class TGCN(pl.LightningModule):
     def __init__(self, input_dim, hidden_dim, layer_dim, output_dim, adjs, adj_norm=True,
-                 datasets=None, dropout=0.5):
+                 datasets=None, cluster_idx_ids=None, dropout=0.5):
         super(TGCN, self).__init__()
 
         # Hidden dimensions
@@ -29,8 +29,8 @@ class TGCN(pl.LightningModule):
         self.fc = nn.Linear(hidden_dim, output_dim)
         self.datasets = datasets
         self.adjs = [self._transform_adj(_adj) for _adj in adjs] if adj_norm else adjs
+        self.cluster_idx_ids = cluster_idx_ids
         self.dropout = nn.Dropout(dropout)
-
 
         self.opt = torch.optim.Adam(self.parameters(), lr=0.01, weight_decay=0.015)
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -93,11 +93,11 @@ class TGCN(pl.LightningModule):
         # y: torch.Size([1, 6163, 1])
         x = x.squeeze(dim=0)
         y = y.squeeze(dim=0)
-        x = x.permute(0, 1, 3, 2)
+        x = x.permute(0, 2, 1)
         y_hat = self.forward(x, adj).squeeze(dim=0)
 
-        y_hat = y_hat.masked_select(mask)
-        y = y.masked_select(mask)
+        y_hat = y_hat.masked_select(mask.bool())
+        y = y.masked_select(mask.bool())
         # use l1 loss
         return {'loss': torch.sum(torch.abs(y_hat - y.float()))}
 
@@ -105,6 +105,7 @@ class TGCN(pl.LightningModule):
     def tng_dataloader(self):
         ds = CustomTensorDataset(self.datasets, adj_list=self.adjs,
                                  mode='train',
+                                 cluster_idx_ids=self.cluster_idx_ids,
                                  time_steps=251)
         return DataLoader(ds, batch_size=1, shuffle=False)
 
@@ -112,6 +113,7 @@ class TGCN(pl.LightningModule):
     def val_dataloader(self):
         ds = CustomTensorDataset(self.datasets, adj_list=self.adjs,
                                  mode='valid',
+                                 cluster_idx_ids=self.cluster_idx_ids,
                                  time_steps=51)
         return DataLoader(ds, batch_size=1, shuffle=False)
 
@@ -119,20 +121,27 @@ class TGCN(pl.LightningModule):
     def test_dataloader(self):
         ds = CustomTensorDataset(self.datasets, adj_list=self.adjs,
                                  mode='test',
+                                 cluster_idx_ids=self.cluster_idx_ids,
                                  time_steps=11)
         return DataLoader(ds, batch_size=1, shuffle=False)
 
     def validation_step(self, batch, batch_nb):
         # batch shape: torch.Size([1, 6163, 26, 10])
+        print(len(batch))
         x, y, adj, mask = batch
+        print(x.shape)
+        print(y.shape)
+        print(adj.shape)
+        print(mask.shape)
+
         adj = dense_to_sparse(adj.to_dense().squeeze(dim=0))
         x = x.squeeze(dim=0)
         y = y.squeeze(dim=0).float()
-        x = x.permute(0, 1, 3, 2)
+        x = x.permute(0, 2, 1)
 
         y_hat = self.forward(x, adj).squeeze(dim=0)
-        y_hat = y_hat.masked_select(mask)
-        y = y.masked_select(mask)
+        y_hat = y_hat.masked_select(mask.bool())
+        y = y.masked_select(mask.bool())
         print(f"y_hat: {y_hat}")
         print(f"y: {y}")
         # convert to np.array for inverse transformation
@@ -158,9 +167,9 @@ class TGCN(pl.LightningModule):
                     'avg_rmse_loss':torch.FloatTensor([-1]),
                     'avg_smape_loss': torch.FloatTensor([-1])
                     }
-        avg_mae_loss = torch.stack([x['val_mae'] for x in outputs]).mean()
-        avg_rmse_loss = torch.stack([x['val_rmse'] for x in outputs]).mean()
-        avg_smape_loss = torch.stack([x['val_smape'] for x in outputs]).mean()
+        avg_mae_loss = torch.stack([x['val_mae'].float() for x in outputs]).mean()
+        avg_rmse_loss = torch.stack([x['val_rmse'].float() for x in outputs]).mean()
+        avg_smape_loss = torch.stack([x['val_smape'].float() for x in outputs]).mean()
         return {'avg_val_mae': avg_mae_loss,
                 'avg_rmse_loss': avg_rmse_loss,
                 'avg_smape_loss': avg_smape_loss
