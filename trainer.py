@@ -1,5 +1,6 @@
 import os
 
+from pytorch_lightning.callbacks import ModelCheckpoint
 from test_tube import Experiment
 from pytorch_lightning import Trainer
 import argparse
@@ -39,22 +40,22 @@ if __name__ == "__main__":
     adjs = list()
     cluster_idx = 0
     for cluster_id in mapping:
+        # cache them in h5
+        if not os.path.exists(f"data/test_cache/cluster_id={cluster_id}.hdf5"):
+                # some clusters do not exist in the cache folder, ignore them.
+                continue
         db = DatasetBuilder(g=g)
         edges, df = db.load_speed_data(file_path=f"data/clusters/cluster_id={cluster_id}/")
-        if len(edges) < 100: continue
+        if len(edges) < 100:
+            # remove too small clusters
+            continue
 
         adj, _ = get_adj_from_subgraph(cluster_id=cluster_id, g=g, edges=edges)
         adjs.append(adj)
 
-        # cache them in h5
-        if not os.path.exists(f"data/cache/cluster_id={cluster_id}.hdf5"):
-            # some clusters do not exist in the cache folder, ignore them.
-            continue
-        datasets.append("data/cache/cluster_id={cluster_id}.hdf5")
+        datasets.append("data/test_cache/cluster_id={cluster_id}.hdf5")
         cluster_idx_ids[cluster_idx] = cluster_id
         cluster_idx += 1
-
-
 
     # PyTorch summarywriter with a few bells and whistles
     exp = Experiment(save_dir='data/models/tgcn/')
@@ -71,6 +72,6 @@ if __name__ == "__main__":
                       checkpoint_callback=checkpoint_callback)
 
     model = TGCN(input_dim=29, hidden_dim=29, layer_dim=2, output_dim=1, adjs=adjs,
-                 datasets=datasets)
+                 datasets=datasets, cluster_idx_ids=cluster_idx_ids)
 
     trainer.fit(model)
