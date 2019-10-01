@@ -41,7 +41,7 @@ if __name__ == "__main__":
     cluster_idx = 0
     for cluster_id in mapping:
         # cache them in h5
-        if not os.path.exists(f"data/test_cache/cluster_id={cluster_id}.hdf5"):
+        if not os.path.exists(f"data/cache/cluster_id={cluster_id}.hdf5"):
                 # some clusters do not exist in the cache folder, ignore them.
                 continue
         db = DatasetBuilder(g=g)
@@ -53,7 +53,7 @@ if __name__ == "__main__":
         adj, _ = get_adj_from_subgraph(cluster_id=cluster_id, g=g, edges=edges)
         adjs.append(adj)
 
-        datasets.append("data/test_cache/cluster_id={cluster_id}.hdf5")
+        datasets.append("data/cache/cluster_id={cluster_id}.hdf5")
         cluster_idx_ids[cluster_idx] = cluster_id
         cluster_idx += 1
 
