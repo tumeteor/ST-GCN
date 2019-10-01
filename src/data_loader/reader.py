@@ -1,6 +1,6 @@
 import tempfile
 from jurbey.jurbey import JURBEY
-from src.config import Config
+from src.configs.db_config import Config
 import networkx as nx
 
 from src.utils.graph_utils import get_berlin_graph

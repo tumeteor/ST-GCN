@@ -6,15 +6,19 @@ from pytorch_lightning import Trainer
 import argparse
 import json
 import logging
-
-from src.config import Config
+import yaml
+from src.configs.db_config import Config
+from src.configs.configs import TGCN as TGCNConfig
 from src.data_loader.reader import read_jurbey, read_cluster_mapping, get_adj_from_subgraph
 from src.logs import get_logger_settings, setup_logging
 from src.data_loader.datasets import DatasetBuilder
 from src.models.tgcn.temporal_spatial_model import TGCN
 
+with open("src/configs/configs.yaml") as ymlfile:
+    cfg = yaml.load(ymlfile)
+
 if __name__ == "__main__":
-    cfg = Config()
+    db_cfg = Config()
     parser = argparse.ArgumentParser(description='Compute Weight for Routing Graph')
     parser.add_argument('--artifact', type=str, help='path to the start2jurbey artifact')
     args = parser.parse_args()
@@ -24,7 +28,7 @@ if __name__ == "__main__":
     if args.artifact:
         artifact_path = args.artifact
     else:
-        artifact_path = cfg.INPUT_PATH
+        artifact_path = db_cfg.INPUT_PATH
 
     with open(artifact_path, 'r') as f:
         message = json.load(f)
@@ -41,11 +45,11 @@ if __name__ == "__main__":
     cluster_idx = 0
     for cluster_id in mapping:
         # cache them in h5
-        if not os.path.exists(f"data/test_cache/cluster_id={cluster_id}.hdf5"):
+        if not os.path.exists(os.path.join(cfg['all_cluster_path'], "cluster_id={cluster_id}.hdf5")):
                 # some clusters do not exist in the cache folder, ignore them.
                 continue
         db = DatasetBuilder(g=g)
-        edges, df = db.load_speed_data(file_path=f"data/clusters/cluster_id={cluster_id}/")
+        edges, df = db.load_speed_data(file_path=os.path.join(cfg['save_dir_data'], "cluster_id={cluster_id}/"))
         if len(edges) < 100:
             # remove too small clusters
             continue
@@ -53,14 +57,14 @@ if __name__ == "__main__":
         adj, _ = get_adj_from_subgraph(cluster_id=cluster_id, g=g, edges=edges)
         adjs.append(adj)
 
-        datasets.append("data/test_cache/cluster_id={cluster_id}.hdf5")
+        datasets.append(os.path.join(cfg['save_dir_data'], "cluster_id={cluster_id}/"))
         cluster_idx_ids[cluster_idx] = cluster_id
         cluster_idx += 1
 
     # PyTorch summarywriter with a few bells and whistles
-    exp = Experiment(save_dir='data/models/tgcn/')
+    exp = Experiment(save_dir=cfg['save_dir_model'])
     checkpoint_callback = ModelCheckpoint(
-        filepath='data/models/tgcn/checkpoints/',
+        filepath=cfg['save_dir_checkpoints'],
         save_best_only=True,
         verbose=True,
         monitor='avg_val_mae',
@@ -68,10 +72,15 @@ if __name__ == "__main__":
     )
 
     # pass in experiment for automatic tensorboard logging.
-    trainer = Trainer(experiment=exp, max_nb_epochs=45, train_percent_check=1,
+    trainer = Trainer(experiment=exp, max_nb_epochs=TGCNConfig.max_nb_epochs, train_percent_check=TGCNConfig.train_percent_check,
                       checkpoint_callback=checkpoint_callback)
 
-    model = TGCN(input_dim=29, hidden_dim=64, layer_dim=2, output_dim=1, adjs=adjs,
-                 datasets=datasets, cluster_idx_ids=cluster_idx_ids)
+    model = TGCN(input_dim=TGCNConfig.input_dim,
+                 hidden_dim=TGCNConfig.hidden_dim,
+                 layer_dim=TGCNConfig.layer_dim,
+                 output_dim=TGCNConfig.output_dim,
+                 adjs=adjs,
+                 datasets=datasets,
+                 cluster_idx_ids=cluster_idx_ids)
 
     trainer.fit(model)
