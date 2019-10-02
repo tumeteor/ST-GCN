@@ -14,3 +14,4 @@ scikit-learn
 jupyterlab
 jupytext
 pytorch-lightning
+snappy
