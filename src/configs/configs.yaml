@@ -1,5 +1,6 @@
 DataConfig:
     all_cluster_path : "data/clusters/"
-    save_dir_data : "data/test_cache/"
+    save_dir_data : "data/cache/"
     save_dir_model : "data/models/tgcn/"
+    save_dir_adj : "data/adjs/"
     save_dir_checkpoints: "data/models/tgcn/checkpoints"

@@ -1,4 +1,5 @@
 import os
+import scipy
 
 import h5py
 import argparse
@@ -43,6 +44,9 @@ if __name__ == "__main__":
         if len(edges) < 100: continue
 
         adj, L = get_adj_from_subgraph(cluster_id=cluster_id, g=g, edges=edges)
+        if not os.path.exists(f"data/adjs/cluster_id={cluster_id}.npz"):
+            scipy.sparse.save_npz(f"data/adj/cluster_id={cluster_id}.npz", adj)
+
         # cache them in h5
         if not os.path.exists(f"data/cache/cluster_id={cluster_id}.hdf5"):
             _data, target, mask = db.construct_batches(df, L=L, memmap=True)
