@@ -1,3 +1,6 @@
+import scipy
+
+import h5py
 import os
 
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -46,18 +49,12 @@ if __name__ == "__main__":
     for cluster_id in mapping:
         # cache them in h5
         if not os.path.exists(os.path.join(cfg['save_dir_data'], f"cluster_id={cluster_id}.hdf5")):
-            print(os.path.join(cfg['save_dir_data'], f"cluster_id={cluster_id}.hdf5"))
             # some clusters do not exist in the cache folder, ignore them.
             continue
 
-        db = DatasetBuilder(g=g)
-        edges, df = db.load_speed_data(file_path=os.path.join(cfg['all_cluster_path'], f"cluster_id={cluster_id}/"))
-        if len(edges) < 100:
-            # remove too small clusters
-            continue
+        scipy.sparse.load_npz(os.path.join(cfg['save_dir_adj'], f"cluster_id={cluster_id}.npz"))
 
-        adj, _ = get_adj_from_subgraph(cluster_id=cluster_id, g=g, edges=edges)
-        adjs.append(adj)
+        adjs.append("adj")
 
         datasets.append(os.path.join(cfg['save_dir_data'], f"cluster_id={cluster_id}/"))
         cluster_idx_ids[cluster_idx] = cluster_id

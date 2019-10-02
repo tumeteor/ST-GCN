@@ -2,8 +2,11 @@ from torch.utils.data import Dataset
 from functools import lru_cache
 import torch
 import h5py
+import yaml
 import numpy as np
 
+with open("src/configs/configs.yaml") as ymlfile:
+    cfg = yaml.load(ymlfile)['DataConfig']
 
 class CustomTensorDataset(Dataset):
     def __init__(self, datasets, adj_list, mode, cluster_idx_ids, time_steps):
@@ -31,6 +34,6 @@ class CustomTensorDataset(Dataset):
 
     @lru_cache(maxsize=2048)
     def _load_tensor_from_path(self, cluster_id):
-        h = h5py.File(f"data/test_cache/cluster_id={cluster_id}.hdf5", "r")
+        h = h5py.File(np.os.path.join(cfg['save_dir_data'], f"cluster_id={cluster_id}.hdf5", "r"))
         return h
 
