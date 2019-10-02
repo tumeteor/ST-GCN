@@ -15,7 +15,7 @@ from src.data_loader.datasets import DatasetBuilder
 from src.models.tgcn.temporal_spatial_model import TGCN
 
 with open("src/configs/configs.yaml") as ymlfile:
-    cfg = yaml.load(ymlfile)
+    cfg = yaml.load(ymlfile)['DataConfig']
 
 if __name__ == "__main__":
     db_cfg = Config()
@@ -45,11 +45,13 @@ if __name__ == "__main__":
     cluster_idx = 0
     for cluster_id in mapping:
         # cache them in h5
-        if not os.path.exists(os.path.join(cfg['all_cluster_path'], "cluster_id={cluster_id}.hdf5")):
-                # some clusters do not exist in the cache folder, ignore them.
-                continue
+        if not os.path.exists(os.path.join(cfg['save_dir_data'], f"cluster_id={cluster_id}.hdf5")):
+            print(os.path.join(cfg['save_dir_data'], f"cluster_id={cluster_id}.hdf5"))
+            # some clusters do not exist in the cache folder, ignore them.
+            continue
+
         db = DatasetBuilder(g=g)
-        edges, df = db.load_speed_data(file_path=os.path.join(cfg['save_dir_data'], "cluster_id={cluster_id}/"))
+        edges, df = db.load_speed_data(file_path=os.path.join(cfg['all_cluster_path'], f"cluster_id={cluster_id}/"))
         if len(edges) < 100:
             # remove too small clusters
             continue
@@ -57,7 +59,7 @@ if __name__ == "__main__":
         adj, _ = get_adj_from_subgraph(cluster_id=cluster_id, g=g, edges=edges)
         adjs.append(adj)
 
-        datasets.append(os.path.join(cfg['save_dir_data'], "cluster_id={cluster_id}/"))
+        datasets.append(os.path.join(cfg['save_dir_data'], f"cluster_id={cluster_id}/"))
         cluster_idx_ids[cluster_idx] = cluster_id
         cluster_idx += 1
 
@@ -72,7 +74,9 @@ if __name__ == "__main__":
     )
 
     # pass in experiment for automatic tensorboard logging.
-    trainer = Trainer(experiment=exp, max_nb_epochs=TGCNConfig.max_nb_epochs, train_percent_check=TGCNConfig.train_percent_check,
+    trainer = Trainer(experiment=exp,
+                      max_nb_epochs=TGCNConfig.max_nb_epochs,
+                      train_percent_check=TGCNConfig.train_percent_check,
                       checkpoint_callback=checkpoint_callback)
 
     model = TGCN(input_dim=TGCNConfig.input_dim,
