@@ -1,10 +1,12 @@
-FROM nvidia/cuda:latest
+FROM nvidia/cuda:10.1-cudnn7-devel
+
+WORKDIR /usr/src/app
 
 ENV LANG="C.UTF-8" LC_ALL="C.UTF-8" PATH="/opt/venv/bin:$PATH" PIP_NO_CACHE_DIR="false" CFLAGS="-mavx2" CXXFLAGS="-mavx2"
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     python3.6 python3-pip python3-venv python3-dev \
-    wget make g++ ffmpeg python3-dev libblas-dev liblapack-dev swig \
+    wget make g++ ffmpeg python3-dev libblas-dev liblapack-dev swig libsnappy-dev \
     libjpeg-turbo8-dev zlib1g-dev && \
     rm -rf /var/lib/apt/lists/*
 

@@ -34,4 +34,3 @@ class CustomTensorDataset(Dataset):
         h = h5py.File(f"data/test_cache/cluster_id={cluster_id}.hdf5", "r")
         return h
 
-

@@ -101,7 +101,7 @@ class TGCN(pl.LightningModule):
         return {'loss': torch.sum(torch.abs(y_hat - y.float()))}
 
     @pl.data_loader
-    def tng_dataloader(self):
+    def train_dataloader(self):
         ds = CustomTensorDataset(self.datasets, adj_list=self.adjs,
                                  mode='train',
                                  cluster_idx_ids=self.cluster_idx_ids,
