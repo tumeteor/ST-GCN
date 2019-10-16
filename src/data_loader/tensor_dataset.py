@@ -9,7 +9,7 @@ with open("src/configs/configs.yaml") as ymlfile:
     cfg = yaml.load(ymlfile)['DataConfig']
 
 
-class CustomTensorDataset(Dataset):
+class GraphTensorDataset(Dataset):
     def __init__(self, datasets, adj_list, mode, cluster_idx_ids, time_steps):
         self.datasets = datasets
         self.adj_list = adj_list

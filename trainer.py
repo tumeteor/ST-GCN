@@ -1,6 +1,4 @@
 import scipy
-
-import h5py
 import os
 
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -12,9 +10,8 @@ import logging
 import yaml
 from src.configs.db_config import Config
 from src.configs.configs import TGCN as TGCNConfig
-from src.data_loader.reader import read_jurbey, read_cluster_mapping, get_adj_from_subgraph
+from src.data_loader.reader import read_jurbey, read_cluster_mapping
 from src.logs import get_logger_settings, setup_logging
-from src.data_loader.datasets import DatasetBuilder
 from src.models.tgcn.temporal_spatial_model import TGCN
 
 with open("src/configs/configs.yaml") as ymlfile:
@@ -52,9 +49,9 @@ if __name__ == "__main__":
             # some clusters do not exist in the cache folder, ignore them.
             continue
 
-        scipy.sparse.load_npz(os.path.join(cfg['save_dir_adj'], f"cluster_id={cluster_id}.npz"))
+        adj = scipy.sparse.load_npz(os.path.join(cfg['save_dir_adj'], f"cluster_id={cluster_id}.npz"))
 
-        adjs.append("adj")
+        adjs.append(adj)
 
         datasets.append(os.path.join(cfg['save_dir_data'], f"cluster_id={cluster_id}/"))
         cluster_idx_ids[cluster_idx] = cluster_id

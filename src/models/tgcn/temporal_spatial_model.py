@@ -5,7 +5,7 @@ import torch
 import numpy as np
 import scipy.sparse as sp
 
-from src.data_loader.tensor_dataset import CustomTensorDataset
+from src.data_loader.tensor_dataset import GraphTensorDataset
 from src.modules.layers.lstmcell import GCLSTMCell
 from src.utils.sparse import sparse_scipy2torch, dense_to_sparse
 from src.metrics.measures import rmse, smape
@@ -102,26 +102,26 @@ class TGCN(pl.LightningModule):
 
     @pl.data_loader
     def train_dataloader(self):
-        ds = CustomTensorDataset(self.datasets, adj_list=self.adjs,
-                                 mode='train',
-                                 cluster_idx_ids=self.cluster_idx_ids,
-                                 time_steps=251)
+        ds = GraphTensorDataset(self.datasets, adj_list=self.adjs,
+                                mode='train',
+                                cluster_idx_ids=self.cluster_idx_ids,
+                                time_steps=251)
         return DataLoader(ds, batch_size=1, shuffle=False)
 
     @pl.data_loader
     def val_dataloader(self):
-        ds = CustomTensorDataset(self.datasets, adj_list=self.adjs,
-                                 mode='valid',
-                                 cluster_idx_ids=self.cluster_idx_ids,
-                                 time_steps=51)
+        ds = GraphTensorDataset(self.datasets, adj_list=self.adjs,
+                                mode='valid',
+                                cluster_idx_ids=self.cluster_idx_ids,
+                                time_steps=51)
         return DataLoader(ds, batch_size=1, shuffle=False)
 
     @pl.data_loader
     def test_dataloader(self):
-        ds = CustomTensorDataset(self.datasets, adj_list=self.adjs,
-                                 mode='test',
-                                 cluster_idx_ids=self.cluster_idx_ids,
-                                 time_steps=11)
+        ds = GraphTensorDataset(self.datasets, adj_list=self.adjs,
+                                mode='test',
+                                cluster_idx_ids=self.cluster_idx_ids,
+                                time_steps=11)
         return DataLoader(ds, batch_size=1, shuffle=False)
 
     def validation_step(self, batch, batch_nb):
