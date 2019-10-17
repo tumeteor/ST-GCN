@@ -1,3 +1,5 @@
+import torch
+
 import scipy
 import os
 
@@ -80,5 +82,6 @@ if __name__ == "__main__":
                  adjs=adjs,
                  datasets=datasets,
                  cluster_idx_ids=cluster_idx_ids)
-
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
     trainer.fit(model)

@@ -1,4 +1,4 @@
-FROM nvidia/cuda:10.1-cudnn7-devel
+FROM nvidia/cuda:9.2-cudnn7-devel-ubuntu16.04
 
 WORKDIR /usr/src/app
 
@@ -13,7 +13,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 RUN python3 -m venv /opt/venv && \
     python3 -m pip install pip==19.2.2 pip-tools==4.0.0 pipenv
 
-WORKDIR    /
+WORKDIR    /usr/src/app
 
 ARG USERNAME
 ARG PASSWORD
@@ -24,6 +24,6 @@ COPY requirements.txt requirements.txt
 # RUN python3 -m pipenv install --verbose --deploy --system --sequential
 RUN python3 -m pip install -r requirements.txt --extra-index-url https://$USERNAME:$PASSWORD@nexus.mobilityservices.io/repository/pypi/simple
 
-ADD . /
+ADD . /usr/src/app
 
 

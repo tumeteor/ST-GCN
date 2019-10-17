@@ -144,7 +144,7 @@ class TGCN(pl.LightningModule):
         no_gt = False
         if mask.sum().item() == 0:
             no_gt = True
-        _mae = torch.FloatTensor(np.abs(y_hat - y)).sum() / mask.sum()
+        _mae = torch.FloatTensor(torch.abs(y_hat - y)).sum() / mask.sum()
         _rmse = torch.FloatTensor([rmse(actual=y.numpy(), predicted=y_hat.numpy())])
         _smape = torch.FloatTensor([smape(actual=y.numpy(), predicted=y_hat.numpy())])
         _no_gt = torch.BoolTensor([no_gt])
