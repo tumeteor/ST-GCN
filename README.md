@@ -18,6 +18,3 @@ The repo for temporal and spatial speed models, targets two scenarios:
 * `preprocess.py` does feature extraction
 * `trainer.py` train TGCN model
 
-<img src="images/spatial-temporal-semantic.png"  alt = "Online mode" width="800">
-<br/>
-The spatial and temporal speed dependency with the topological structure of the road network.
