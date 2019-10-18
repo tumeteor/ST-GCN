@@ -1,4 +1,4 @@
-from torch.utils.data import Dataset
+from torch.utils.data import TensorDataset
 from functools import lru_cache
 import torch
 import h5py
@@ -9,7 +9,7 @@ with open("src/configs/configs.yaml") as ymlfile:
     cfg = yaml.load(ymlfile)['DataConfig']
 
 
-class GraphTensorDataset(Dataset):
+class GraphTensorDataset(TensorDataset):
     def __init__(self, datasets, adj_list, mode, cluster_idx_ids, time_steps):
         self.datasets = datasets
         self.adj_list = adj_list

@@ -15,7 +15,7 @@ torch.manual_seed(0)
 
 class TGCN(pl.LightningModule):
     def __init__(self, input_dim, hidden_dim, layer_dim, output_dim, adjs, adj_norm=True,
-                 datasets=None, cluster_idx_ids=None, dropout=0.5):
+                 datasets=None, cluster_idx_ids=None, dropout=0.5, device=None):
         super(TGCN, self).__init__()
 
         # Hidden dimensions
@@ -24,7 +24,7 @@ class TGCN(pl.LightningModule):
         # Number of hidden layers
         self.layer_dim = layer_dim
 
-        self.gc_lstm = GCLSTMCell(input_dim, hidden_dim, dropout)
+        self.gc_lstm = GCLSTMCell(input_dim, hidden_dim, dropout).to(device)
 
         self.fc = nn.Linear(hidden_dim, output_dim)
         self.datasets = datasets
@@ -35,6 +35,7 @@ class TGCN(pl.LightningModule):
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.opt, patience=3, verbose=True
         )
+        self.device = device
 
     def _transform_adj(self, adj):
         # build symmetric adjacency matrix
@@ -55,16 +56,9 @@ class TGCN(pl.LightningModule):
 
     def forward(self, x, adj):
         # shape x: [batch_size, seq_length, input_dim(features)] 6163, 9, 27
-        if torch.cuda.is_available():
-            h0 = nn.Parameter(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).cuda())
-        else:
-            h0 = nn.Parameter(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim))
-
+        h0 = nn.Parameter(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim)).to(self.device)
         # Initialize cell state
-        if torch.cuda.is_available():
-            c0 = nn.Parameter(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).cuda())
-        else:
-            c0 = nn.Parameter(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim))
+        c0 = nn.Parameter(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim)).to(self.device)
 
         outs = []
 
@@ -86,6 +80,7 @@ class TGCN(pl.LightningModule):
         return [self.opt]
 
     def training_step(self, batch, batch_nb):
+        batch = [b.to(self.device) for b in batch]
         x, y, adj, mask = batch
         adj = dense_to_sparse(adj.to_dense().squeeze(dim=0))
         # x: torch.Size([1, 6163, 29, 9])
@@ -125,6 +120,7 @@ class TGCN(pl.LightningModule):
         return DataLoader(ds, batch_size=1, shuffle=False)
 
     def validation_step(self, batch, batch_nb):
+        batch = [b.to(self.device) for b in batch]
         # batch shape: torch.Size([1, 6163, 26, 10])
         x, y, adj, mask = batch
 

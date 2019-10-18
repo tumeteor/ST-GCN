@@ -8,7 +8,7 @@ modeldb
 python-json-logger
 mock
 dataclasses
-torch
+torch==1.2.0
 scikit-learn
 jupyterlab
 jupytext

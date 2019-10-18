@@ -74,6 +74,7 @@ if __name__ == "__main__":
                       max_nb_epochs=TGCNConfig.max_nb_epochs,
                       train_percent_check=TGCNConfig.train_percent_check,
                       checkpoint_callback=checkpoint_callback)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = TGCN(input_dim=TGCNConfig.input_dim,
                  hidden_dim=TGCNConfig.hidden_dim,
@@ -81,7 +82,7 @@ if __name__ == "__main__":
                  output_dim=TGCNConfig.output_dim,
                  adjs=adjs,
                  datasets=datasets,
-                 cluster_idx_ids=cluster_idx_ids)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                 cluster_idx_ids=cluster_idx_ids,
+                 device=device)
     model = model.to(device)
     trainer.fit(model)
