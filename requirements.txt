@@ -1,4 +1,5 @@
 pandas
+jurbey==1.2.89
 minio
 networkx
 pytest
