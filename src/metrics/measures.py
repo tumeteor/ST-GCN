@@ -45,7 +45,8 @@ def rmse(actual: np.ndarray, predicted: np.ndarray, remove_outliers=None):
         float: the metric value, from 0 to 1.0, the smaller the better
     """
     _assert_equal_lengths(actual, predicted)
-
+    if len(actual) == 0:
+        return -1
     return np.sqrt(mse(actual, predicted)) if remove_outliers else np.sqrt(mse(actual, predicted, remove_outliers))
 
 
@@ -67,7 +68,7 @@ def smape(actual: np.ndarray, predicted: np.ndarray, remove_outliers=None):
         _smape.append(float(2 * np.abs(actual[i] - predicted[i])) / (actual[i] + predicted[i]))
 
     _smape = remove_outliers(np.array(_smape)) if remove_outliers else _smape
-    return float(np.sum(_smape)) / len(_smape) * 100
+    return float(np.sum(_smape)) / len(_smape) * 100 if len(_smape) > 0 else -1
 
 
 def percentage_error(actual: np.ndarray, predicted: np.ndarray, remove_outliers=None):

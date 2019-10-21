@@ -1,12 +1,8 @@
 from torch.nn.parameter import Parameter
-from collections import defaultdict
-import os
 import numpy as np
 import torch
-from torch.nn import functional as F
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
-from src.graph_utils import partition_graph_by_lonlat
 from src.utils.memory import mem_report
 
 torch.manual_seed(0)

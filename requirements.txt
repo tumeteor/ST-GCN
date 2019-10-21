@@ -8,9 +8,12 @@ modeldb
 python-json-logger
 mock
 dataclasses
-dask
-torch
+torch==1.2.0
 scikit-learn
 jupyterlab
 jupytext
-pytorch-lightning
+pytorch-lightning==0.5.0
+snappy
+PyYAML
+h5py
+gpustat
