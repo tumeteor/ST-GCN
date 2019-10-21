@@ -14,14 +14,13 @@ modeldb = "*"
 python-json-logger = "*"
 mock = "*"
 dataclasses = "*"
-dask = {extras = ["complete"],version = "*"}
 jsonnet = "*"
 experiment-tracker = "*"
-torch = "*"
+torch = "1.2.0"
 scikit-learn = "*"
 jupyterlab = "*"
 jupytext = "*"
-pytorch-lightning = "*"
+pytorch-lightning = "0.5.0"
 
 [dev-packages]
 jupyter = "*"

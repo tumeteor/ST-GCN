@@ -12,11 +12,11 @@ import logging
 import yaml
 from src.configs.db_config import Config
 from src.configs.configs import TGCN as TGCNConfig
-from src.data_loader.reader import read_jurbey, read_cluster_mapping
+from src.data_loader.reader import read_cluster_mapping
 from src.logs import get_logger_settings, setup_logging
 from src.models.tgcn.temporal_spatial_model import TGCN
 
-with open("src/configs/configs.yaml") as ymlfile:
+with open("configs/configs.yaml") as ymlfile:
     cfg = yaml.load(ymlfile)['DataConfig']
 
 if __name__ == "__main__":
@@ -34,11 +34,6 @@ if __name__ == "__main__":
 
     with open(artifact_path, 'r') as f:
         message = json.load(f)
-
-    logging.info('\u2B07 Getting Jurbey File...')
-    # g = read_jurbey_from_minio(message['bucket'], message['jurbey_path'])
-    g = read_jurbey()
-    logging.info("\u2705 Done loading Jurbey graph.")
 
     mapping = read_cluster_mapping()
     cluster_idx_ids = dict()
@@ -73,8 +68,14 @@ if __name__ == "__main__":
     trainer = Trainer(experiment=exp,
                       max_nb_epochs=TGCNConfig.max_nb_epochs,
                       train_percent_check=TGCNConfig.train_percent_check,
-                      checkpoint_callback=checkpoint_callback)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                      checkpoint_callback=checkpoint_callback,
+                      gpus=1) if torch.cuda.is_available() else \
+        Trainer(experiment=exp,
+                max_nb_epochs=TGCNConfig.max_nb_epochs,
+                train_percent_check=TGCNConfig.train_percent_check,
+                checkpoint_callback=checkpoint_callback)
+
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     model = TGCN(input_dim=TGCNConfig.input_dim,
                  hidden_dim=TGCNConfig.hidden_dim,

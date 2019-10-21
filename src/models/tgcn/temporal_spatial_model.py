@@ -4,13 +4,17 @@ import pytorch_lightning as pl
 import torch
 import numpy as np
 import scipy.sparse as sp
-
+import sys
+import logging
 from src.data_loader.tensor_dataset import GraphTensorDataset
 from src.modules.layers.lstmcell import GCLSTMCell
+from src.utils.ops import clear_parameters
 from src.utils.sparse import sparse_scipy2torch, dense_to_sparse
 from src.metrics.measures import rmse, smape
+from src.configs.configs import TGCN as TGCNConfig
 
 torch.manual_seed(0)
+np.random.seed(0)
 
 
 class TGCN(pl.LightningModule):
@@ -31,9 +35,9 @@ class TGCN(pl.LightningModule):
         self.adjs = [self._transform_adj(_adj) for _adj in adjs] if adj_norm else adjs
         self.cluster_idx_ids = cluster_idx_ids
 
-        self.opt = torch.optim.Adam(self.parameters(), lr=0.01, weight_decay=0.015)
+        self.opt = torch.optim.Adam(self.parameters(), lr=TGCNConfig.lr, weight_decay=TGCNConfig.weight_decay)
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.opt, patience=3, verbose=True
+            self.opt, patience=TGCNConfig.lr_scheduler_patience, verbose=True
         )
         self.device = device
 
@@ -68,7 +72,6 @@ class TGCN(pl.LightningModule):
             x = torch.squeeze(x, dim=0)
             for seq in range(x.size(2)):
                 hn, cn = self.gc_lstm(x=x[:, :, seq].float(), hx=hn, cx=cn, adj=adj)
-
                 outs.append(hn)
 
         out = outs[-1].squeeze()
@@ -82,18 +85,29 @@ class TGCN(pl.LightningModule):
     def training_step(self, batch, batch_nb):
         batch = [b.to(self.device) for b in batch]
         x, y, adj, mask = batch
-        adj = dense_to_sparse(adj.to_dense().squeeze(dim=0))
+        adj = dense_to_sparse(adj.squeeze(dim=0)).float()
         # x: torch.Size([1, 6163, 29, 9])
         # y: torch.Size([1, 6163, 1])
         x = x.squeeze(dim=0)
         y = y.squeeze(dim=0)
         x = x.permute(0, 2, 1)
-        y_hat = self.forward(x, adj).squeeze(dim=0)
+        try:
+            y_hat = self.forward(x, adj).squeeze(dim=0)
+        except RuntimeError as e:
+            if 'out of memory' in str(e):
+                logging.warning('| WARNING: ran out of memory, retrying batch', sys.stdout)
+                clear_parameters(self)
+                y_hat = self.forward(x, adj).squeeze(dim=0)
+            else:
+                raise e
 
         y_hat = y_hat.masked_select(mask.bool())
         y = y.masked_select(mask.bool())
         # use l1 loss
-        return {'loss': torch.sum(torch.abs(y_hat - y.float()))}
+        # NOTE: need to ignore batch when mask is full (all missing values)
+        # batch iteration is currently handled by pytorch-lightning
+        loss_fn = torch.nn.SmoothL1Loss(reduction='mean')
+        return {'loss': loss_fn(y_hat, y.float())}
 
     @pl.data_loader
     def train_dataloader(self):
@@ -101,7 +115,11 @@ class TGCN(pl.LightningModule):
                                 mode='train',
                                 cluster_idx_ids=self.cluster_idx_ids,
                                 time_steps=251)
-        return DataLoader(ds, batch_size=1, shuffle=False)
+        # increase the shared memory for the docker container to use more workers for prefetching
+        # otherwise use single
+        # batch_size in the logic of DataLoader needs to be equal to the number of gpus in our setting
+        # NOTE: the implicit (variable-length) batch size is the number of nodes in the subgraph
+        return DataLoader(ds, batch_size=1, shuffle=False, pin_memory=True, num_workers=2)
 
     @pl.data_loader
     def val_dataloader(self):
@@ -109,7 +127,11 @@ class TGCN(pl.LightningModule):
                                 mode='valid',
                                 cluster_idx_ids=self.cluster_idx_ids,
                                 time_steps=51)
-        return DataLoader(ds, batch_size=1, shuffle=False)
+        # increase the shared memory for the docker container to use more workers for prefetching
+        # otherwise use single thread
+        # batch_size in the logic of DataLoader needs to be equal to the number of gpus in our setting
+        # NOTE: the implicit (variable-length) batch size is the number of nodes in the subgraph
+        return DataLoader(ds, batch_size=1, shuffle=False, pin_memory=True, num_workers=2)
 
     @pl.data_loader
     def test_dataloader(self):
@@ -117,32 +139,43 @@ class TGCN(pl.LightningModule):
                                 mode='test',
                                 cluster_idx_ids=self.cluster_idx_ids,
                                 time_steps=11)
-        return DataLoader(ds, batch_size=1, shuffle=False)
+        # batch_size in the logic of DataLoader needs to be equal to the number of gpus in our setting
+        # NOTE: the implicit (variable-length) batch size is the number of nodes in the subgraph
+        return DataLoader(ds, batch_size=1, shuffle=False, pin_memory=True, num_workers=2)
 
     def validation_step(self, batch, batch_nb):
         batch = [b.to(self.device) for b in batch]
         # batch shape: torch.Size([1, 6163, 26, 10])
         x, y, adj, mask = batch
 
-        adj = dense_to_sparse(adj.to_dense().squeeze(dim=0))
+        adj = dense_to_sparse(adj.squeeze(dim=0)).float()
         x = x.squeeze(dim=0)
         y = y.squeeze(dim=0).float()
         x = x.permute(0, 2, 1)
 
-        y_hat = self.forward(x, adj).squeeze(dim=0)
+        try:
+            y_hat = self.forward(x, adj).squeeze(dim=0)
+        except RuntimeError as e:
+            if 'out of memory' in str(e):
+                print('| WARNING: ran out of memory, retrying batch', sys.stdout)
+                clear_parameters(self)
+                y_hat = self.forward(x, adj).squeeze(dim=0)
+            else:
+                raise e
+
         y_hat = y_hat.masked_select(mask.bool())
         y = y.masked_select(mask.bool())
-        print(f"y_hat: {y_hat}")
-        print(f"y: {y}")
+        logging.debug(f"y_hat: {y_hat}")
+        logging.debug(f"y: {y}")
         # convert to np.array for inverse transformation
         # y_hat = scaler.inverse_transform(np.array(y_hat).reshape(-1, 1))
         # y = scaler.inverse_transform(np.array(y).reshape(-1, 1))
         no_gt = False
         if mask.sum().item() == 0:
             no_gt = True
-        _mae = torch.FloatTensor(torch.abs(y_hat - y)).sum() / mask.sum()
-        _rmse = torch.FloatTensor([rmse(actual=y.numpy(), predicted=y_hat.numpy())])
-        _smape = torch.FloatTensor([smape(actual=y.numpy(), predicted=y_hat.numpy())])
+        _mae = torch.abs(y_hat - y).mean().float()
+        _rmse = torch.FloatTensor([rmse(actual=y.cpu().numpy(), predicted=y_hat.cpu().numpy())])
+        _smape = torch.FloatTensor([smape(actual=y.cpu().numpy(), predicted=y_hat.cpu().numpy())])
         _no_gt = torch.BoolTensor([no_gt])
         return {'val_mae': _mae,
                 'val_rmse': _rmse,
