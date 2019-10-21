@@ -21,7 +21,7 @@ docker:
   script:
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
     - docker build --build-arg NPM_TOKEN=${NPM_TOKEN} --pull --cache-from
-      $IMAGE:latest -t $IMAGE:$VERSION -t $IMAGE:latest .
-      --build-arg USERNAME=$USERNAME --build-arg PASSWORD=$PASSWORD
+      $IMAGE:latest -t $IMAGE:$VERSION -t $IMAGE:latest
+      --build-arg USERNAME=$USERNAME --build-arg PASSWORD=$PASSWORD .
     - docker push $IMAGE:$VERSION
     - docker push $IMAGE:latest

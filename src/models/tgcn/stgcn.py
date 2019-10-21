@@ -1,41 +1,49 @@
-from torch.utils.data import DataLoader, TensorDataset
-from torch import nn
-import pytorch_lightning as pl
+from torch import optim
+
 import torch
+import torch.nn as nn
+import pytorch_lightning as pl
 import numpy as np
 import scipy.sparse as sp
+
+from torch.utils.data import DataLoader, TensorDataset
+
+from src.metrics.measures import rmse, smape
+from src.modules.layers.block import STGCNBlock, TimeBlock
 from src.utils.sparse import sparse_scipy2torch
-from src.tgcn.layers.lstmcell import GCLSTMCell
-from src.eval.measures import rmse, smape
-torch.manual_seed(0)
 
 
-class TGCN(pl.LightningModule):
-    def __init__(self, input_dim, hidden_dim, layer_dim, output_dim, adj, adj_norm=False,
-                 datasets=None, targets=None, dropout=0.5, mask=None, scaler=None):
-        super(TGCN, self).__init__()
+class STGCN(pl.LightningModule):
+    """
+    Input should have shape (batch_size, num_nodes, num_input_time_steps,
+    num_features).
+    """
 
-        # Hidden dimensions
-        self.hidden_dim = hidden_dim
+    def __init__(self, num_nodes=6163, num_features=29, num_timesteps_input=9,
+                 num_timesteps_output=1, adj=None, datasets=None, targets=None, mask=None, normalized=False, scaler=None):
+        """
+        :param num_nodes: Number of nodes in the graph.
+        :param num_features: Number of features at each node in each time step.
+        :param num_timesteps_input: Number of past time steps fed into the
+        network.
+        :param num_timesteps_output: Desired number of future time steps
+        output by the network.
+        """
+        super(STGCN, self).__init__()
+        self.block1 = STGCNBlock(in_channels=num_features, out_channels=64,
+                                 spatial_channels=16, num_nodes=num_nodes)
+        self.block2 = STGCNBlock(in_channels=64, out_channels=64,
+                                 spatial_channels=16, num_nodes=num_nodes)
+        self.last_temporal = TimeBlock(in_channels=64, out_channels=64)
+        self.fully = nn.Linear(num_timesteps_input * 64,
+                               num_timesteps_output)
 
-        # Number of hidden layers
-        self.layer_dim = layer_dim
-
-        self.gc_lstm = GCLSTMCell(input_dim, hidden_dim, adj=adj)
-
-        self.fc = nn.Linear(hidden_dim, output_dim)
         self.datasets = datasets
-        self.adj = self._transform_adj(adj) if adj_norm else adj
-        self.dropout = nn.Dropout(dropout)
         self.targets = targets
-        self.scaler = scaler
-
         self.mask = mask
 
-        self.opt = torch.optim.Adam(self.parameters(), lr=0.01, weight_decay=0.015)
-        self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.opt, patience=3, verbose=True
-        )
+        self.adj = self._transform_adj(adj) if normalized else adj
+        self.scaler = scaler
 
     def _transform_adj(self, adj):
         # build symmetric adjacency matrix
@@ -54,47 +62,35 @@ class TGCN(pl.LightningModule):
         mx = r_mat_inv.dot(mx)
         return mx
 
-    def forward(self, x):
-        # shape x: [batch_size, seq_length, input_dim(features)] 6163, 9, 27
-        if torch.cuda.is_available():
-            h0 = nn.Parameter(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).cuda())
-        else:
-            h0 = nn.Parameter(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim))
-
-        # Initialize cell state
-        if torch.cuda.is_available():
-            c0 = nn.Parameter(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).cuda())
-        else:
-            c0 = nn.Parameter(torch.zeros(self.layer_dim, x.size(0), self.hidden_dim))
-
-        outs = []
-
-        for i in range(self.layer_dim):
-            cn = c0[i, :, :]
-            hn = h0[i, :, :]
-            x = torch.squeeze(x, dim=0)
-            for seq in range(x.size(2)):
-                hn, cn = self.gc_lstm(x=x[:, :, seq].float(), hx=hn, cx=cn)
-
-                outs.append(hn)
-
-        out = outs[-1].squeeze()
-        out = self.fc(out)
-        # out.size() --> 100, 10
-        return out
+    def forward(self, A_hat, X):
+        """
+        :param X: Input data of shape (batch_size, num_nodes, num_timesteps,
+        num_features=in_channels).
+        :param A_hat: Normalized adjacency matrix.
+        """
+        out1 = self.block1(X, A_hat)
+        out2 = self.block2(out1, A_hat)
+        out3 = self.last_temporal(out2)
+        print(f"Out3 shape: {out3.shape}")
+        out4 = self.fully(out3.reshape((out3.shape[0], out3.shape[1], -1)))
+        return out4
 
     def configure_optimizers(self):
-        return [self.opt]
+        return optim.Adam(self.parameters(), lr=1e-2, weight_decay=1e-3)
 
     def training_step(self, batch, batch_nb):
+        # (batch_size, num_nodes, num_input_time_steps, num_features)
+        # [batch_size, seq_length, input_dim(features)] 1, 6163, 9, 27
         x, y = batch
+        x = x.permute(0, 1, 3, 2).float()
+
         y = y.squeeze(dim=0)
-        y_hat = self.forward(x).squeeze(dim=0)
+        y_hat = self.forward(A_hat=self.adj, X=x).squeeze(dim=0)
 
         _mask = self.mask['train'][batch_nb, :, :]
         y_hat = y_hat.masked_select(_mask)
         y = y.masked_select(_mask)
-        # use l1 loss
+
         return {'loss': torch.sum(torch.abs(y_hat - y.float()))}
 
     @pl.data_loader
@@ -111,10 +107,13 @@ class TGCN(pl.LightningModule):
 
     def validation_step(self, batch, batch_nb):
         # batch shape: torch.Size([1, 6163, 26, 10])
+        # [batch_size, seq_length, input_dim(features)] 1, 6163, 9, 27
         x, y = batch
+        x = x.permute(0, 1, 3, 2).float()
+
         y = y.squeeze(dim=0)
 
-        y_hat = self.forward(x).squeeze(dim=0)
+        y_hat = self.forward(A_hat=self.adj, X=x).squeeze(dim=0)
         _mask = self.mask['valid'][batch_nb, :, :]
 
         y_hat = y_hat.masked_select(_mask)
@@ -140,3 +139,4 @@ class TGCN(pl.LightningModule):
                 'avg_rmse_loss': avg_rmse_loss,
                 'avg_smape_loss': avg_smape_loss
                 }
+

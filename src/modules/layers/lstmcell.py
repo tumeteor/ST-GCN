@@ -10,8 +10,16 @@ torch.manual_seed(0)
 
 
 class GCLSTMCell(nn.Module):
+    """
+    Graph convolution LSTM cell.
+     Args:
+            input_size (int): the input size
+            hidden_size (int): the size of the hidden states
+            bias (bool): whether to add bias for regularization
+            dropout (double): the dropout rate
+    """
 
-    def __init__(self, input_size, hidden_size, adj=None, bias=True):
+    def __init__(self, input_size, hidden_size, bias=True, dropout=0.5):
         super(GCLSTMCell, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -19,11 +27,11 @@ class GCLSTMCell(nn.Module):
             self.bias = Parameter(torch.FloatTensor(hidden_size))
         else:
             self.register_parameter('bias', None)
-        self.x2h = nn.Linear(input_size, 4 * hidden_size, bias=bias)
+        self.x2h = nn.Linear(hidden_size, 4 * hidden_size, bias=bias)
         self.h2h = nn.Linear(hidden_size, 4 * hidden_size, bias=bias)
         self.gcn_weight = Parameter(torch.FloatTensor(input_size, hidden_size))
-
-        self.adj = adj
+        self.batch_norm = nn.BatchNorm1d(hidden_size)
+        self.dropout = dropout
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -33,16 +41,29 @@ class GCLSTMCell(nn.Module):
         if self.bias is not None:
             self.bias.data.uniform_(-std, std)
 
-    def forward(self, x, hx, cx):
+    def forward(self, x, hx, cx, adj):
+        """
+        Args:
+            x: Input data of shape (batch_size, num_nodes, num_timesteps,
+                    num_features=in_channels).
+            hx: hidden state vector
+            cx: cell state vector
+            adj: Normalized adjacency matrix.
+                    :return: Output data of shape (batch_size, num_nodes,
+                    num_timesteps_out, num_features=out_channels).
+
+        Returns:
+
+        """
         support = torch.mm(x.float(), self.gcn_weight)
-        x = torch.spmm(self.adj, support)
+        x = torch.spmm(adj, support)
         x = F.relu(x)
-        x = F.dropout(x, training=self.training)
+        x = F.dropout(x, training=self.training, p=self.dropout)
         if self.bias is not None:
             x = x + self.bias
-
+        # apply batch-norm over all nodes (in the batch)
+        x = self.batch_norm(x)
         x = x.view(-1, x.size(1))
-
         gates = self.x2h(x) + self.h2h(hx)
 
         gates = gates.squeeze()
