@@ -36,10 +36,10 @@ if __name__ == "__main__":
 
     mapping = read_cluster_mapping()
 
-    data = list()
-    targets = list()
-    adjs = list()
-    masks = list()
+    data = []
+    targets = []
+    adjs = []
+    masks = []
     for cluster_id in mapping:
         db = DatasetBuilder(g=g)
         edges, df = db.load_speed_data(file_path=os.path.join(cfg['all_cluster_path'], f"cluster_id={cluster_id}.hdf5"))

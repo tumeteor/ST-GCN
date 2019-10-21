@@ -1,4 +1,6 @@
 import tempfile
+from collections import defaultdict
+
 from jurbey.jurbey import JURBEY
 from src.configs.db_config import Config
 import networkx as nx
@@ -28,12 +30,12 @@ def read_jurbey(f='data/1558537930325.jurbey'):
 
 def read_cluster_mapping():
     import csv
-    mapping = dict()
+    mapping = defaultdict(list)
     with open('cluster-mapping.csv') as f:
         r = csv.reader(f)
         for row in r:
             v, k = row
-            mapping.setdefault(int(k), []).append(float(v))
+            mapping[k].append(float(v))
     return mapping
 
 
