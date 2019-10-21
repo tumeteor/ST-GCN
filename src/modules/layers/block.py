@@ -59,7 +59,6 @@ class STGCNBlock(nn.Module):
     """
     def __init__(self, in_channels, spatial_channels, out_channels,
                  num_nodes):
-        super(STGCNBlock, self).__init__()
         self.temporal1 = TimeBlock(in_channels=in_channels,
                                    out_channels=out_channels)
         self.Theta1 = nn.Parameter(torch.FloatTensor(out_channels,
