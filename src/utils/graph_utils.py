@@ -2,11 +2,21 @@ import pandas as pd
 import numpy as np
 
 
-def get_berlin_graph(g):
+def get_berlin_graph(g, berlin_lat=52, berlin_lon=13):
+    """
+    Get only the berlin area from JURBEY
+    Args:
+        g (JURBEY):
+        berlin_lat (int): the rounded Berlin lat
+        berlin_lon (int): the rounded Berlin lon
+
+    Returns:
+
+    """
     nodes = list(g.nodes())
     for node in nodes:
         coord = g.nodes[node]['data'].coord
-        if abs(coord.lat - 52) > 1 or abs(coord.lon - 13) > 1:
+        if abs(coord.lat - berlin_lat) > 1 or abs(coord.lon - berlin_lon) > 1:
             g.remove_node(node)
     return g
 

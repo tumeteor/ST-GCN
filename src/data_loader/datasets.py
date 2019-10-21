@@ -61,12 +61,20 @@ class DatasetBuilder:
         return self.enc.fit_transform(data), self.ienc.fit_transform(data_ord)
 
     def _build_dataset_to_numpy_tensor(self, from_, to, df=None, id_to_idx=None):
-        """
-        We extract features from speed (actual speed, whether speed is missing)
+        """We extract features from speed (actual speed, whether speed is missing)
         and combine with static features.
-        :return:
+
+        Args:
+            from_ (int): from time step
+            to (int): to time step
+            df (Pandas.DataFrame): the dataframe contains (only) speed data
+            id_to_idx (dict): dictionary of segment_id --> df.indices
+
+        Returns:
              np.ndarray: dataset tensor of shape [num_time_steps, num_nodes, num_features]
+
         """
+
         dataset = np.empty([to - from_, len(df), self.NUM_FEATS])
         for t in range(from_, to):
             cat_features_at_t = [['primary', 'asphalt', 'MajorRoad', t % 24]] * len(df)
@@ -86,45 +94,49 @@ class DatasetBuilder:
                                                  self.enc.fit_transform(cat_features_at_t).toarray()], axis=1)
         return dataset
 
-    def _generate_dataset_concat(self, X, X_masked, num_timesteps_input, num_timesteps_output, memmap=False):
+    def _generate_dataset_concat(self, X, X_mask, num_lookback, num_lookahead, memmap=False):
         """
         Takes node features for the graph and divides them into multiple samples
-        along the time-axis by sliding a window of size (num_timesteps_input+
-        num_timesteps_output) across it in steps of 1.
-        :param X: Node features of shape (num_vertices, num_features,
-        num_timesteps)
-        :return:
-            - Node data (features + labels) divided into multiple samples. Shape is
-              (num_samples, num_vertices, num_features, num_timesteps_input).
+                along the time-axis by sliding a window of size (num_timesteps_input+
+                num_lookahead) across it in steps of 1.
+        Args:
+            X: Node features of shape (num_vertices, num_features, num_timesteps)
+            X_mask: same shape with X, but contains Mask info
+            num_lookback: number of timesteps to look back
+            num_lookahead: number of timesteps to look ahead
+            memmap (bool): whether to use memmap for contructing the array
 
+        Returns:
+            Node data (features + labels) divided into multiple samples. Shape is
+                      (num_samples, num_vertices, num_features, num_timesteps_input).
         """
         # Generate the beginning index and the ending index of a sample, which
         # contains (num_points_for_training + num_points_for_predicting) points
-        indices = [(i, i + (num_timesteps_input + num_timesteps_output)) for i
+        indices = [(i, i + (num_lookback + num_lookahead)) for i
                    in range(X.shape[2] - (
-                    num_timesteps_input + num_timesteps_output) + 1)]
+                    num_lookback + num_lookahead) + 1)]
         # Save samples
         if memmap:
             with tempfile.NamedTemporaryFile() as ff:
                 features = np.memmap(filename=ff, shape=(len(indices), len(X), self.NUM_FEATS,
-                                                         num_timesteps_input), dtype=np.double)
+                                                         num_lookback), dtype=np.double)
             with tempfile.NamedTemporaryFile() as ft:
-                target = np.memmap(filename=ft, shape=(len(indices), len(X), num_timesteps_output),
+                target = np.memmap(filename=ft, shape=(len(indices), len(X), num_lookahead),
                                    dtype=np.double)
             with tempfile.NamedTemporaryFile() as fm:
-                mask = np.memmap(filename=fm, shape=(len(indices), len(X), num_timesteps_output),
+                mask = np.memmap(filename=fm, shape=(len(indices), len(X), num_lookahead),
                                  dtype=np.double)
 
         else:
-            features = np.empty([len(indices), len(X), self.NUM_FEATS, num_timesteps_input], dtype=np.double)
-            target = np.empty([len(indices), len(X), num_timesteps_output], dtype=np.double)
-            mask = np.empty([len(indices), len(X), num_timesteps_output], dtype=np.double)
+            features = np.empty([len(indices), len(X), self.NUM_FEATS, num_lookback], dtype=np.double)
+            target = np.empty([len(indices), len(X), num_lookahead], dtype=np.double)
+            mask = np.empty([len(indices), len(X), num_lookahead], dtype=np.double)
 
         for k, (i, j) in enumerate(indices):
             # num_vertices, num_features, num_timesteps
-            features[k] = X[:, :, i: i + num_timesteps_input]
-            target[k] = X[:, 0, i + num_timesteps_input: j]
-            mask[k] = X_masked[:, 0, i + num_timesteps_input: j]
+            features[k] = X[:, :, i: i + num_lookback]
+            target[k] = X[:, 0, i + num_lookback: j]
+            mask[k] = X_mask[:, 0, i + num_lookback: j]
 
         return np.array(features), np.array(target), np.array(mask)
 
@@ -145,16 +157,16 @@ class DatasetBuilder:
 
         # num_samples, num_nodes, num_timesteps, num_features
         training_data, training_target, train_mask = self._generate_dataset_concat(train_original_data, train_mask,
-                                                                                   num_timesteps_input=look_back,
-                                                                                   num_timesteps_output=look_ahead,
+                                                                                   num_lookback=look_back,
+                                                                                   num_lookahead=look_ahead,
                                                                                    memmap=memmap)
         valid_data, valid_target, valid_mask = self._generate_dataset_concat(val_original_data, valid_mask,
-                                                                             num_timesteps_input=look_back,
-                                                                             num_timesteps_output=look_ahead,
+                                                                             num_lookback=look_back,
+                                                                             num_lookahead=look_ahead,
                                                                              memmap=memmap)
         test_data, test_target, test_mask = self._generate_dataset_concat(test_original_data, test_mask,
-                                                                          num_timesteps_input=look_back,
-                                                                          num_timesteps_output=look_ahead,
+                                                                          num_lookback=look_back,
+                                                                          num_lookahead=look_ahead,
                                                                           memmap=memmap)
 
         data = {'train': training_data, 'valid': valid_data, 'test': test_data}
