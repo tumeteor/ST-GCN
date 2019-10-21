@@ -1,16 +1,12 @@
-import torch
-
-import scipy
-import os
-
 from pytorch_lightning.callbacks import ModelCheckpoint
 from test_tube import Experiment
 from pytorch_lightning import Trainer
 import argparse
-import json
 import logging
 import yaml
-from src.configs.db_config import Config
+import torch
+import scipy
+import os
 from src.configs.configs import TGCN as TGCNConfig
 from src.data_loader.reader import read_cluster_mapping
 from src.logs import get_logger_settings, setup_logging
@@ -20,20 +16,11 @@ with open("configs/configs.yaml") as ymlfile:
     cfg = yaml.load(ymlfile)['DataConfig']
 
 if __name__ == "__main__":
-    db_cfg = Config()
     parser = argparse.ArgumentParser(description='Compute Weight for Routing Graph')
     parser.add_argument('--artifact', type=str, help='path to the start2jurbey artifact')
     args = parser.parse_args()
     log_setting = get_logger_settings(logging.INFO)
     setup_logging(log_setting)
-
-    if args.artifact:
-        artifact_path = args.artifact
-    else:
-        artifact_path = db_cfg.INPUT_PATH
-
-    with open(artifact_path, 'r') as f:
-        message = json.load(f)
 
     mapping = read_cluster_mapping()
     cluster_idx_ids = dict()
