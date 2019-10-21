@@ -10,6 +10,14 @@ torch.manual_seed(0)
 
 
 class GCLSTMCell(nn.Module):
+    """
+    Graph convolution LSTM cell.
+     Args:
+            input_size (int): the input size
+            hidden_size (int): the size of the hidden states
+            bias (bool): whether to add bias for regularization
+            dropout (double): the dropout rate
+    """
 
     def __init__(self, input_size, hidden_size, bias=True, dropout=0.5):
         super(GCLSTMCell, self).__init__()
@@ -34,6 +42,19 @@ class GCLSTMCell(nn.Module):
             self.bias.data.uniform_(-std, std)
 
     def forward(self, x, hx, cx, adj):
+        """
+        Args:
+            x: Input data of shape (batch_size, num_nodes, num_timesteps,
+                    num_features=in_channels).
+            hx: hidden state vector
+            cx: cell state vector
+            adj: Normalized adjacency matrix.
+                    :return: Output data of shape (batch_size, num_nodes,
+                    num_timesteps_out, num_features=out_channels).
+
+        Returns:
+
+        """
         support = torch.mm(x.float(), self.gcn_weight)
         x = torch.spmm(adj, support)
         x = F.relu(x)
