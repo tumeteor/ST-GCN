@@ -43,8 +43,7 @@ class GraphTensorDataset(Dataset):
         data = self._load_item(idx=batch_idx, _type="data")
         target = self._load_item(idx=batch_idx, _type="target")
         mask = self._load_item(idx=batch_idx, _type="mask")
-        return data, target, \
-               adj, mask
+        return data, target, adj, mask
 
     @lru_cache(maxsize=8)
     def __len__(self):
