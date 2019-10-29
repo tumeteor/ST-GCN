@@ -12,6 +12,7 @@ from src.utils.ops import clear_parameters
 from src.utils.sparse import sparse_scipy2torch, dense_to_sparse
 from src.metrics.measures import rmse, smape
 from src.configs.configs import TGCN as TGCNConfig
+from src.configs.configs import Data as DataConfig
 
 torch.manual_seed(0)
 np.random.seed(0)
@@ -85,7 +86,8 @@ class TGCN(pl.LightningModule):
     def training_step(self, batch, batch_nb):
         batch = [b.to(self.device) for b in batch]
         x, y, adj, mask = batch
-        adj = dense_to_sparse(adj.squeeze(dim=0)).float()
+        # squeeze sparse tensor using sum
+        adj = torch.sparse.sum(adj, dim=0).float()
         # x: torch.Size([1, 6163, 29, 9])
         # y: torch.Size([1, 6163, 1])
         x = x.squeeze(dim=0)
@@ -109,46 +111,59 @@ class TGCN(pl.LightningModule):
         loss_fn = torch.nn.SmoothL1Loss(reduction='mean')
         return {'loss': loss_fn(y_hat, y.float())}
 
+    def on_batch_start(self, batch):
+        """
+        We want to skip batch with all NaNs. Return -1 will skip the batch
+        Args:
+            batch:
+
+        Returns:
+            int:
+
+        """
+        if batch[-1].sum().item() == 0:
+            return -1
+
     @pl.data_loader
     def train_dataloader(self):
         ds = GraphTensorDataset(self.datasets, adj_list=self.adjs,
                                 mode='train',
                                 cluster_idx_ids=self.cluster_idx_ids,
-                                time_steps=251)
+                                time_steps=DataConfig.train_num_steps)
         # increase the shared memory for the docker container to use more workers for prefetching
         # otherwise use single
         # batch_size in the logic of DataLoader needs to be equal to the number of gpus in our setting
         # NOTE: the implicit (variable-length) batch size is the number of nodes in the subgraph
-        return DataLoader(ds, batch_size=1, shuffle=False, pin_memory=True, num_workers=2)
+        return DataLoader(ds, batch_size=1, shuffle=False, num_workers=0)
 
     @pl.data_loader
     def val_dataloader(self):
         ds = GraphTensorDataset(self.datasets, adj_list=self.adjs,
                                 mode='valid',
                                 cluster_idx_ids=self.cluster_idx_ids,
-                                time_steps=51)
+                                time_steps=DataConfig.valid_num_steps)
         # increase the shared memory for the docker container to use more workers for prefetching
         # otherwise use single thread
         # batch_size in the logic of DataLoader needs to be equal to the number of gpus in our setting
         # NOTE: the implicit (variable-length) batch size is the number of nodes in the subgraph
-        return DataLoader(ds, batch_size=1, shuffle=False, pin_memory=True, num_workers=2)
+        return DataLoader(ds, batch_size=1, shuffle=False, num_workers=0)
 
     @pl.data_loader
     def test_dataloader(self):
         ds = GraphTensorDataset(self.datasets, adj_list=self.adjs,
                                 mode='test',
                                 cluster_idx_ids=self.cluster_idx_ids,
-                                time_steps=11)
+                                time_steps=DataConfig.test_num_steps)
         # batch_size in the logic of DataLoader needs to be equal to the number of gpus in our setting
         # NOTE: the implicit (variable-length) batch size is the number of nodes in the subgraph
-        return DataLoader(ds, batch_size=1, shuffle=False, pin_memory=True, num_workers=2)
+        return DataLoader(ds, batch_size=1, shuffle=False, num_workers=0)
 
     def validation_step(self, batch, batch_nb):
         batch = [b.to(self.device) for b in batch]
-        # batch shape: torch.Size([1, 6163, 26, 10])
+        # batch shape: torch.Size([1, num_nodes, num_features, look_back])
         x, y, adj, mask = batch
-
-        adj = dense_to_sparse(adj.squeeze(dim=0)).float()
+        # squeeze sparse tensor using sum
+        adj = torch.sparse.sum(adj, dim=0).float()
         x = x.squeeze(dim=0)
         y = y.squeeze(dim=0).float()
         x = x.permute(0, 2, 1)

@@ -183,6 +183,7 @@ class DatasetBuilder:
 
     def load_speed_data(self, file_path):
         file_path = glob.glob(f'{file_path}/*snappy.parquet')
+        print(file_path)
         pf = ParquetFile(file_path)
         df = pf.to_pandas()
         df = self._remove_non_existing_edges_from_df(df)
