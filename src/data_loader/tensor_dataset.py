@@ -5,7 +5,6 @@ import h5py
 import yaml
 import os
 import numpy as np
-from torchvision.transforms import transforms
 
 with open("configs/configs.yaml") as ymlfile:
     cfg = yaml.safe_load(ymlfile)['DataConfig']
@@ -23,7 +22,6 @@ class GraphTensorDataset(Dataset):
         self.prev_gidx = 0
         self.h = h5py.File(os.path.join(cfg['save_dir_data'], f"cluster_id={self.cluster_idx_ids[0]}.hdf5"), "r")
         self.cache = dict()
-        self.transform = transforms.Normalize
 
     @lru_cache(maxsize=8)
     def __getitem__(self, index):
