@@ -4,7 +4,7 @@ include:
 
 lint:
   stage: check
-  image: python:3.7
+  image: python:3.6
   before_script:
     - pip install -q flake8
   script:
@@ -13,7 +13,7 @@ lint:
 
 dependency:
   stage: pre-test
-  image: python:3.7
+  image: python:3.6
   before_script:
     - pip install pipenv
     - pipenv install -d --system --ignore-pipfile
@@ -23,7 +23,7 @@ dependency:
 
 pytest:
   stage: test
-  image: python:3.7
+  image: python:3.6
   before_script:
     - pip install pipenv
     - pipenv install -d
