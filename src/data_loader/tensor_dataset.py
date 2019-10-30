@@ -7,14 +7,13 @@ import os
 import numpy as np
 
 with open("configs/configs.yaml") as ymlfile:
-    cfg = yaml.load(ymlfile)['DataConfig']
+    cfg = yaml.safe_load(ymlfile)['DataConfig']
 
 
 class GraphTensorDataset(Dataset):
     CHUNK_SIZE = 100
 
     def __init__(self, datasets, adj_list, mode, cluster_idx_ids, time_steps):
-        super(self).__init__()
         self.datasets = datasets
         self.adj_list = adj_list
         self.cluster_idx_ids = cluster_idx_ids
@@ -33,6 +32,7 @@ class GraphTensorDataset(Dataset):
         if graph_idx != self.prev_gidx:
             self.h.close()
             self.h = self._load_tensor_from_path(cluster_id=cluster_id)
+            # empirical settings
             if 10000 > adj.shape[0] > 6000:
                 # reduce the chunk size for too big graph
                 self.CHUNK_SIZE = 40
@@ -43,16 +43,14 @@ class GraphTensorDataset(Dataset):
         data = self._load_item(idx=batch_idx, _type="data")
         target = self._load_item(idx=batch_idx, _type="target")
         mask = self._load_item(idx=batch_idx, _type="mask")
-        return torch.from_numpy(data), torch.from_numpy(target), \
-               adj.to_dense().squeeze(dim=0), torch.from_numpy(mask)
+        return data, target, adj, mask
 
     @lru_cache(maxsize=8)
     def __len__(self):
         return self.time_steps * len(self.adj_list)
 
-    @lru_cache(maxsize=64)
     def _load_item(self, idx, _type):
-        if idx % 0:
+        if idx % self.CHUNK_SIZE == 0:
             cidx = (idx // self.CHUNK_SIZE) * self.CHUNK_SIZE
             self.cache[_type] = self.h[_type][self.mode][cidx:cidx + self.CHUNK_SIZE]
         return np.array(self.cache[_type][idx % self.CHUNK_SIZE])

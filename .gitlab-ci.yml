@@ -2,16 +2,36 @@ include:
   - project: 'infra/ci-cd/base'
     file: '.gitlab-ci.yml'
 
-  - project: 'infra/ci-cd/tests'
-    file: '.gitlab-ci.yml'
+lint:
+  stage: check
+  image: python:3.6
+  before_script:
+    - pip install -q flake8
+  script:
+    - flake8
+  allow_failure: true
 
-  - project: 'infra/ci-cd/deploy'
-    file: '.gitlab-ci.yml'
+dependency:
+  stage: pre-test
+  image: python:3.6
+  before_script:
+    - pip install pipenv
+    - pipenv install -d --system --ignore-pipfile
+  script:
+    - pipenv check
+  allow_failure: true
 
-  - project: 'infra/ci-cd/python'
-    file: '.gitlab-ci.yml'
-
-
+pytest:
+  stage: test
+  image: python:3.6
+  before_script:
+    - apt-get update
+    - apt-get --yes install libsnappy-dev
+    - pip install pipenv
+    - pipenv install -d
+  script:
+    - pipenv run python3 -m pytest tests/
+  allow_failure: false
 
 docker:
   dependencies: []

@@ -21,6 +21,9 @@ scikit-learn = "*"
 jupyterlab = "*"
 jupytext = "*"
 pytorch-lightning = "==0.5.0"
+fastparquet = "==0.3.2"
+python-snappy = "*"
+pyarrow  = "*"
 
 [dev-packages]
 jupyter = "*"
