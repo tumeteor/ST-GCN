@@ -17,4 +17,12 @@ The repo for temporal and spatial speed models, targets two scenarios:
 
 * `preprocess.py` does feature extraction
 * `trainer.py` train TGCN model
+     - `python trainer.py --train`: train the data
+     - `python trainer.py --test`: predict data and save in parquet format
+     
+## Deployment to Kubernetes
+
+We can claim GPU(s) when creating a pod using the `k8s-trainer.yml` script. Currently, only one GPU
+can be claimed for one pod.
+ 
 

@@ -1,6 +1,7 @@
 import os
 import scipy
 import h5py
+import pickle as pkl
 import argparse
 import json
 import logging
@@ -42,11 +43,15 @@ if __name__ == "__main__":
     masks = []
     for cluster_id in mapping:
         db = DatasetBuilder(g=g)
-        edges, df = db.load_speed_data(file_path=os.path.join(cfg['all_cluster_path'], f"cluster_id={cluster_id}.hdf5"))
+        edges, df = db.load_speed_data(file_path=os.path.join(cfg['all_cluster_path'], f"cluster_id={cluster_id}"))
         if len(edges) < 100:
             continue
+        if not os.path.exists(os.path.join(cfg['save_dir_adj'], f"cluster_id={cluster_id}.edgelist")):
+            with open(os.path.join(cfg['save_dir_adj'], f"cluster_id={cluster_id}.edgelist"), 'wb') as f:
+                pkl.dump(edges, f)
 
         adj, L = get_adj_from_subgraph(cluster_id=cluster_id, g=g, edges=edges)
+
         if not os.path.exists(os.path.join(cfg['all_cluster_path'], f"cluster_id={cluster_id}.npz")):
             scipy.sparse.save_npz(os.path.join(cfg['all_cluster_path'], f"cluster_id={cluster_id}.npz"), adj)
 
