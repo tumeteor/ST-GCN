@@ -25,6 +25,7 @@ pytest:
   stage: test
   image: python:3.6
   before_script:
+    - apt-get install libsnappy-dev
     - pip install pipenv
     - pipenv install -d
   script:
