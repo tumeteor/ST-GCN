@@ -1,6 +1,9 @@
 DataConfig:
+    # This path stores the cached tensors with only speed features
     all_cluster_path : "data/clusters/"
+    # This path stores the cached and window-sliced tensored with enriched features
     save_dir_data : "data/cache/"
     save_dir_model : "data/models/tgcn/"
+    # This path stores the cached adjs and edge lists
     save_dir_adj : "data/adjs/"
     save_dir_checkpoints: "data/models/tgcn/checkpoints"

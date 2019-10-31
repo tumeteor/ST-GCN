@@ -30,7 +30,7 @@ can be claimed for one pod.
 
 * The `preprocess.py` script expects data from [speed-model-dataset-spark](https://gitlab.mobilityservices.io/am/roam/realtime/speed-model-dataset-spark),
   with numpy tensors (each tensor corresponds to a grid), in the shape of `[num_nodes, 1, num_timesteps]`. Currently, all
-  the downstream transformation is done using numpy / pandas on a single machine.
+  the downstream transformations are done using numpy / pandas on a single machine.
   
   The data is cached at (in the general AWS account):
    - s3://aws-acc-001-1053-r1-master-data-science/speed/dataset/mytaxi/v3-timeseries-partitions-1hour/
