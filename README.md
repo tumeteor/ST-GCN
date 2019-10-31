@@ -32,8 +32,8 @@ can be claimed for one pod.
   with numpy tensors (each tensor corresponds to a grid), in the shape of `[num_nodes, 1, num_timesteps]`. Currently, all
   the downstream transformation is done using numpy / pandas on a single machine.
   
-  The data is cached at:
-   - aws-acc-001-1053-r1-master-data-science/speed/dataset/mytaxi/v3-timeseries-partitions-1hour/
+  The data is cached at (in the general AWS account):
+   - s3://aws-acc-001-1053-r1-master-data-science/speed/dataset/mytaxi/v3-timeseries-partitions-1hour/
   
   Then for every tensor, we enrich with features extracted from JURBEY and some basic time-senstive features, 
   window-slicing it to new tensor of shape `[num_nodes, num_features, num_look_back_step, num_timesteps]` for `data`,
