@@ -41,11 +41,11 @@ can be claimed for one pod.
   The window-sliced data is cached at:
    -  s3://aws-acc-001-1053-r1-master-data-science/speed/dataset/mytaxi/features_400/
    
-   NOTE 1: the grid-based clustering is done separately and the mapping is in the `cluster-mapping.csv` file.
+ * NOTE 1: the grid-based clustering is done separately and the mapping is in the `cluster-mapping.csv` file.
    The adjacency matrices and edge list wrt. cluster (grid) IDs are cached in:
    -  s3://aws-acc-001-1053-r1-master-data-science/speed/dataset/mytaxi/adjs/
    
-   NOTE 2: The current memory botteneck is from the window-slicing of the feature tensors, there are 2 alternatives:
+ * NOTE 2: The current memory botteneck is from the window-slicing of the feature tensors, there are 2 alternatives:
    (1) do it sequentially for every chunk of time steps and (2) use distributed framework i.e., Spark.
   
 
