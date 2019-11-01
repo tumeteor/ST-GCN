@@ -20,6 +20,28 @@ The repo for temporal and spatial speed models, targets two scenarios:
      - `python trainer.py --train`: train the data
      - `python trainer.py --test`: predict data and save in parquet format
      
+
+## Output Data
+For each subgrid and each dataset (i.e., test, train, validation) a parquet file with predicted values is created.
+With the following schema:
+```
+message schema {
+  optional double 1553983200;
+  optional double 1553986800;
+  optional double 1553990400;
+  optional double 1553994000;
+  optional double 1553997600;
+  optional double 1554001200;
+  optional double 1554004800;
+  optional double 1554008400;
+  optional double 1554012000;
+  ...
+  optional double 1554883200;
+  optional int64 from_node;
+  optional int64 to_node;
+}
+```
+
 ## Deployment to Kubernetes
 
 We can claim GPU(s) when creating a pod using the `k8s-trainer.yml` script. Currently, only one GPU
