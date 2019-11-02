@@ -1,6 +1,7 @@
 import tempfile
 from collections import defaultdict
 
+from src.module import DATACONFIG_GETTER
 from jurbey.jurbey import JURBEY
 from src.configs.db_config import Config
 import networkx as nx
@@ -8,6 +9,7 @@ import networkx as nx
 from src.utils.graph_utils import get_berlin_graph
 
 cfg = Config()
+datacfg = DATACONFIG_GETTER()
 
 
 def read_jurbey_from_minio(bucket_name, object_name):
@@ -31,7 +33,7 @@ def read_jurbey(f='data/1558537930325.jurbey'):
 def read_cluster_mapping():
     import csv
     mapping = defaultdict(list)
-    with open('cluster-mapping.csv') as f:
+    with open(datacfg['cluster_mapping']) as f:
         r = csv.reader(f)
         for row in r:
             v, k = row

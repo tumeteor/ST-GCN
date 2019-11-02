@@ -5,14 +5,13 @@ import pickle as pkl
 import argparse
 import json
 import logging
-import yaml
 from src.configs.db_config import Config
 from src.data_loader.reader import read_jurbey, read_cluster_mapping, get_adj_from_subgraph
 from src.logs import get_logger_settings, setup_logging
 from src.data_loader.datasets import DatasetBuilder
+from src.module import DATACONFIG_GETTER
 
-with open("configs/configs.yaml") as ymlfile:
-    cfg = yaml.load(ymlfile)['DataConfig']
+cfg = DATACONFIG_GETTER()
 
 if __name__ == "__main__":
     db_cfg = Config()

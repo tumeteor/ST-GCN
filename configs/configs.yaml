@@ -7,3 +7,5 @@ DataConfig:
     # This path stores the cached adjs and edge lists
     save_dir_adj : "data/adjs/"
     save_dir_checkpoints: "data/models/tgcn/checkpoints"
+    # cluster (grid) mapping file
+    cluster_mapping : "data/cluster-mapping.csv"

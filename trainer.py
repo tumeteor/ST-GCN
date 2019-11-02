@@ -3,7 +3,6 @@ from test_tube import Experiment
 from pytorch_lightning import Trainer
 import argparse
 import logging
-import yaml
 import torch
 import scipy
 import os
@@ -18,9 +17,9 @@ from src.data_loader.tensor_dataset import GraphTensorDataset
 from src.logs import get_logger_settings, setup_logging
 from src.models.tgcn.temporal_spatial_model import TGCN
 from src.utils.sparse import dense_to_sparse, sparse_scipy2torch
+from src.module import DATACONFIG_GETTER
 
-with open("configs/configs.yaml") as ymlfile:
-    cfg = yaml.safe_load(ymlfile)['DataConfig']
+cfg = DATACONFIG_GETTER()
 
 
 def get_datasets():

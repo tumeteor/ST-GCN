@@ -1,13 +1,11 @@
 from torch.utils.data import Dataset
 from functools import lru_cache
-import torch
 import h5py
-import yaml
 import os
 import numpy as np
+from src.module import DATACONFIG_GETTER
 
-with open("configs/configs.yaml") as ymlfile:
-    cfg = yaml.safe_load(ymlfile)['DataConfig']
+cfg = DATACONFIG_GETTER()
 
 
 class GraphTensorDataset(Dataset):
