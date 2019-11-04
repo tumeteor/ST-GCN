@@ -12,3 +12,4 @@ __pycache__/
 .eggs
 *.tar.gz
 *.jurbey
+data/*
