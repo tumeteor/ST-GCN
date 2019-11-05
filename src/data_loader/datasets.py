@@ -30,7 +30,7 @@ class DatasetBuilder:
 
         self.g = g
 
-    def _arc_features(self, arc, timestep):
+    def _arc_features(self, arc):
         arc = self.g[arc[0]][arc[1]]
         try:
             max_speed_feature = float(arc['data'].metadata.get('maxspeed', '50'))
@@ -48,8 +48,7 @@ class DatasetBuilder:
         return [
                    arc['data'].metadata['highway'],
                    arc['data'].metadata.get('surface', 'no_sur'),
-                   arc['data'].roadClass.name,
-                   timestep % 24
+                   arc['data'].roadClass.name
                ], [max_speed_feature, num_lanes_feature]
 
     def _construct_features(self, L):
@@ -60,7 +59,7 @@ class DatasetBuilder:
             data_ord.append(self._arc_features(node)[1])
         return self.enc.fit_transform(data), self.ienc.fit_transform(data_ord)
 
-    def _build_dataset_to_numpy_tensor(self, from_, to, df=None, id_to_idx=None):
+    def _build_dataset_to_numpy_tensor(self, from_, to, df=None, id_to_idx=None, nb_buckets=24):
         """We extract features from speed (actual speed, whether speed is missing)
         and combine with static features.
 
@@ -76,22 +75,22 @@ class DatasetBuilder:
         """
 
         dataset = np.empty([to - from_, len(df), self.NUM_FEATS])
+        cat_features = [['primary', 'asphalt', 'MajorRoad']] * len(df)
+        ord_features_at_t = [[50.0, 4]] * len(df)
+        for _, row in df.iterrows():
+            arc = (int(row['from_node']), int(row['to_node']))
+            cat_features[id_to_idx[arc]], ord_features_at_t[id_to_idx[arc]] = \
+                self._arc_features(arc)
+        ord_features_at_t = self.ienc.fit_transform(np.array(ord_features_at_t))
         for t in range(from_, to):
-            cat_features_at_t = [['primary', 'asphalt', 'MajorRoad', t % 24]] * len(df)
-            ord_features_at_t = [[50.0, 4]] * len(df)
-            speed_features_at_t = [50] * len(df)
-            speed_is_nan_feature = [1] * len(df)
-            for _, row in df.iterrows():
-                arc = (int(row['from_node']), int(row['to_node']))
-                cat_features_at_t[id_to_idx[arc]], ord_features_at_t[id_to_idx[arc]] = \
-                    self._arc_features(arc, timestep=t)
-                speed_features_at_t[id_to_idx[arc]] = row[str(t)]
-                if np.isnan(row[str(t)]):
-                    speed_is_nan_feature[id_to_idx[arc]] = 0
-            dataset[t - from_] = np.concatenate([np.array(speed_features_at_t).reshape(-1, 1),
-                                                 np.array(speed_is_nan_feature).reshape(-1, 1),
-                                                 self.ienc.fit_transform(ord_features_at_t),
-                                                 self.enc.fit_transform(cat_features_at_t).toarray()], axis=1)
+            speed_is_nan_feature = np.array([0. if np.isnan(x) else 1. for x in df[str(t)]]).reshape((-1, 1))
+            speed_features_at_t = df[str(t)].to_numpy().reshape((-1, 1))
+            cat_features_at_t = [x + [t % nb_buckets] for x in cat_features]
+            cat_features_at_t = self.enc.fit_transform(cat_features_at_t).toarray()
+            dataset[t - from_] = np.concatenate([speed_features_at_t,
+                                                 speed_is_nan_feature,
+                                                 ord_features_at_t,
+                                                 cat_features_at_t], axis=1)
         return dataset
 
     def _generate_dataset_concat(self, X, X_mask, num_lookback, num_lookahead, memmap=False):
@@ -190,6 +189,7 @@ class DatasetBuilder:
         return edges, df
 
     def construct_batches(self, df, L, TOTAL_T_STEPS=2263, memmap=False):
+        TOTAL_T_STEPS = df.shape[1] - 2
         id_to_idx = {}
 
         for idx, id_ in enumerate(L.nodes()):
