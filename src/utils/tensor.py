@@ -31,3 +31,13 @@ def get_mask_from_numpy_tensor(X):
     mask = ma.masked_invalid(X)
     return np.logical_not(mask.mask)
 
+def is_finite(x):
+    """
+    Quick pytorch test that there are no nan's or infs.
+    
+    note: torch now has torch.isnan
+    url: https://gist.github.com/wassname/df8bc03e60f81ff081e1895aabe1f519
+    """
+    not_inf = ((x + 1) != x)
+    not_nan = (x == x)
+    return not_inf & not_nan
