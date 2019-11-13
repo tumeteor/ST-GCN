@@ -141,8 +141,10 @@ class TrafficDataset(torch.utils.data.IterableDataset):
             # cat_features_at_t = torch.stack(list(cat_features_at_t))
             idxs = map(lambda x: x + (t % self.nb_buckets, ), self.cat_features)
             idxs = map(lambda x: self.features_encoder[x], idxs)
-            idxs = torch.LongTensor([[i, j] for i, j in enumerate(idxs)])
+            idxs = list(zip(range(len(self.cat_features)), idxs))
+            idxs = torch.LongTensor(idxs)
             cat_features_at_t = torch.zeros((len(self.cat_features), len(self.features_encoder)), dtype=torch.float)
+            cat_features_at_t[idxs[:, 0], idxs[:, 1]] = 1.
             dataset[t] = torch.cat([speed_features_at_t,
                                     speed_is_nan_feature,
                                     self.ord_features_at_t,
