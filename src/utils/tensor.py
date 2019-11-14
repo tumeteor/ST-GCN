@@ -33,9 +33,7 @@ def get_mask_from_numpy_tensor(X):
 
 def is_finite(x):
     """
-    Quick pytorch test that there are no nan's or infs.
+    Quick inverse of pytorch test that there are no nan's.
     
-    note: torch now has torch.isnan
-    url: https://gist.github.com/wassname/df8bc03e60f81ff081e1895aabe1f519
     """
     return ~torch.isnan(x)

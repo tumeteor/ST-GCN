@@ -72,3 +72,9 @@ aws s3 cp s3://aws-acc-001-1053-r42-transition/berlin.jurbey ./1558537930325.jur
 ```
 
 If you survived all of it you should be good to go ;)
+
+## TrafficDataset
+
+The TrafficDataset object loads the raw files outputed by `speed-model-dataset-spark` and yields data points on the fly.
+
+In order to work, it maintains an internal state with a lot of preprocessed data. This amount varies between 6 and 8 GB of RAM. You will need to provide this amount of memory for each worker in the dataloader.

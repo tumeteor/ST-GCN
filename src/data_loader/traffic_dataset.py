@@ -20,14 +20,56 @@ with open("configs/configs.yaml") as ymlfile:
 def get_encoder(*args):
     return {c: i for i, c in enumerate(product(*args))}
 
-def one_hot(x, size):
-    vec = torch.zeros(size, dtype=torch.float)
-    vec[x] = 1
-    return vec
+def series_one_hot(tensor, num_feats=96):
+    tensor_size = (tensor.size(0) - 1 + num_feats, ) + tensor.size()[1:]
+    ans = torch.Tensor(*tensor_size)
+    ans[:-num_feats, :, :] = tensor[:-1, :, :]
+    x = tensor[-1, :, :].long()
+    y = torch.arange(x.size(0)).repeat(tensor.size(2), 1).t()
+    idxs = torch.stack((x, y))
+    cat_features_at_t = torch.zeros(num_feats, tensor_size[1], tensor_size[2], dtype=torch.float)
+    for i in range(cat_features_at_t.size(2)):
+        cat_features_at_t[idxs[:, 0, i], idxs[:, 1, i], i] = 1.
+    ans[-num_feats:, :, :] = cat_features_at_t
+    return ans
 
 class TrafficDataset(torch.utils.data.IterableDataset):
+    """This Dataset class yields data for the speed models.
+
+    The data is loaded from the files outputed by `speed-model-dataset-spark`.
+    It reads the path to the files from the configuration file
+    `configs/configd.yaml`.
+
+    This Dataset is iterable which means one can not access random elements. At
+    the end of a time series, the dataset automatically loads data for a new
+    grid cell and continues to do so until all cells have been iterated over.
+
+    Note:
+        The internal state for one worker takes between 6 and 8 GB of RAM. Make
+        sure you have enough memory when instantiating the DataLoader.
+
+    """
 
     def __init__(self, G, nb_buckets = 24, slice_size = 30):
+        """The instantiation method of the class.
+
+        The __init__ method may be documented in either the class level
+        docstring, or as a docstring on the __init__ method itself.
+
+        Either form is acceptable, but the two should not be mixed. Choose one
+        convention to document the __init__ method and be consistent with it.
+
+        Note:
+            This method is fast because it does not preload the first grid cell.
+            If you want to prefetch the first grid cell you must first call the
+            __iter__ method.
+
+        Args:
+            G (JURBEY): The map
+            nb_bucket (:obj:`int`, optional): Number of time buckets
+            slice_size (:obj:`int`, optional): Time series size to load
+
+        """
         super().__init__()
         self.G = G
         self.nb_buckets = nb_buckets
@@ -37,25 +79,40 @@ class TrafficDataset(torch.utils.data.IterableDataset):
         self.mapping = iter(read_cluster_mapping())
 
     def __next__(self):
-        # TODO Select correct time window to load
-        # TODO if new_cluster_test: self._load_new_cluster
-        # TODO Slice data to the needed window
-        if (self.i + self.slice_size) % (self.X.size(0) - 1) == 0:
+        """This yields the next exemple.
+
+        The output is 3 tensors: features, target, mask
+
+        Features: NUM_FEATRES x NUM_NODES x TIME_WINDOW
+        Target: NUM_NODES
+        Mask: NUM_NODES x TIME_WINDOW
+
+        Note:
+            When reaching the end of a grid cell, the next one is automatically
+            loaded here. So the execution time can be high in that case.
+            Therefore you should not rely on a constant execution time.
+
+        """
+        if (self.i + self.slice_size) % (self.X.size(2) - 1) == 0:
             self._load_new_cluster()
         indices = [(i, i + (self.slice_size)) for i
-                   in range(X.shape[2] - (
-                    num_lookback + num_lookahead) + 1)]
+                   in range(self.X.shape[2] - (self.slice_size))]
         start = self.i % self.X.size(0)
         end = start + self.slice_size
 
-        features = self.X[start: start + self.slice_size-1, :, :]
-        target = self.X[start + self.slice_size, :, 0]
-        mask = self.mask[:, 0, start + self.slice_size-1:end]
+        features = series_one_hot(self.X[:, :, start:end])
+        target = self.X[0, :, end]
+        mask = self.mask[0, :, start:end]
 
         self.i += 1
+        breakpoint()
         return features, target, mask
 
     def __iter__(self):
+        """Nothing fancy here, just loads the first grid cell, if several
+        workers are used, then each worker will get a list of cells to work on.
+
+        """
         # TODO Check worker's state
         # TODO Select clusters to work on
         # Initialize state
@@ -78,8 +135,8 @@ class TrafficDataset(torch.utils.data.IterableDataset):
         df_filled['from_node'] = df['from_node']
         df_filled['to_node'] = df['to_node']
         self._prepare_static_features(df, id_to_idx)
-        self.X = self._build_dataset_to_numpy_tensor(df, id_to_idx).permute(2, 0 ,1)
-        #self.X_filled = self._build_dataset_to_numpy_tensor(df_filled, id_to_idx).permute(2, 0, 1)
+        self.X = self._build_dataset_to_tensor(df, id_to_idx).permute(2, 0 ,1)
+        #self.X_filled = self._build_dataset_to_tensor(df_filled, id_to_idx).permute(2, 0, 1)
         self.mask = is_finite(self.X)
 
     def _load_speed_data(self, file_path):
@@ -114,7 +171,7 @@ class TrafficDataset(torch.utils.data.IterableDataset):
             self.ord_features_at_t[id_to_idx[arc]] = float(self.road_enc[road])
         self.ord_features_at_t = self.ord_features_at_t.unsqueeze(1)
 
-    def _build_dataset_to_numpy_tensor(self, df=None, id_to_idx=None):
+    def _build_dataset_to_tensor(self, df=None, id_to_idx=None):
         """We extract features from speed (actual speed, whether speed is missing)
         and combine with static features.
 
@@ -130,25 +187,21 @@ class TrafficDataset(torch.utils.data.IterableDataset):
         """
 
         total_timesteps = df.shape[1] - 2
-        NUM_FEATS = 96 + 3#53 # TODO change NUM_FEATS
+        NUM_FEATS = 4#96 + 3#53 # TODO change NUM_FEATS
         dataset = torch.Tensor(total_timesteps, len(df), NUM_FEATS)
         for t in range(total_timesteps):
             speed_is_nan_feature = torch.Tensor([0. if x != x else 1. for x in df[str(t)]]).unsqueeze(1)
             speed_features_at_t = torch.from_numpy(df[str(t)].to_numpy()).unsqueeze(1).float()
-            # cat_features_at_t = map(lambda x: x + (t % self.nb_buckets, ), self.cat_features)
-            # cat_features_at_t = map(lambda x: self.features_encoder[x], cat_features_at_t)
-            # cat_features_at_t = map(lambda x: one_hot(x, len(self.features_encoder)), cat_features_at_t)
-            # cat_features_at_t = torch.stack(list(cat_features_at_t))
             idxs = map(lambda x: x + (t % self.nb_buckets, ), self.cat_features)
             idxs = map(lambda x: self.features_encoder[x], idxs)
-            idxs = list(zip(range(len(self.cat_features)), idxs))
-            idxs = torch.LongTensor(idxs)
-            cat_features_at_t = torch.zeros((len(self.cat_features), len(self.features_encoder)), dtype=torch.float)
-            cat_features_at_t[idxs[:, 0], idxs[:, 1]] = 1.
+            idxs = torch.Tensor(list(idxs)).unsqueeze(1)
+            #idxs = list(zip(range(len(self.cat_features)), idxs))
+            #cat_features_at_t = torch.zeros((len(self.cat_features), len(self.features_encoder)), dtype=torch.float)
+            #cat_features_at_t[idxs[:, 0], idxs[:, 1]] = 1.
             dataset[t] = torch.cat([speed_features_at_t,
                                     speed_is_nan_feature,
                                     self.ord_features_at_t,
-                                    cat_features_at_t], axis=1)
+                                    idxs], axis=1)
 
         return dataset
 
