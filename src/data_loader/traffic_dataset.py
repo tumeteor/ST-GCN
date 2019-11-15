@@ -84,7 +84,7 @@ class TrafficDataset(torch.utils.data.IterableDataset):
 
         The output is 3 tensors: features, target, mask
 
-        Features: NUM_FEATRES x NUM_NODES x TIME_WINDOW
+        Features: NUM_FEATURES x NUM_NODES x TIME_WINDOW
         Target: NUM_NODES
         Mask: NUM_NODES x TIME_WINDOW
 
@@ -200,9 +200,6 @@ class TrafficDataset(torch.utils.data.IterableDataset):
             idxs = map(lambda x: x + (t % self.nb_buckets, ), self.cat_features)
             idxs = map(lambda x: self.features_encoder[x], idxs)
             idxs = torch.Tensor(list(idxs)).unsqueeze(1)
-            #idxs = list(zip(range(len(self.cat_features)), idxs))
-            #cat_features_at_t = torch.zeros((len(self.cat_features), len(self.features_encoder)), dtype=torch.float)
-            #cat_features_at_t[idxs[:, 0], idxs[:, 1]] = 1.
             dataset[t] = torch.cat([speed_features_at_t,
                                     speed_is_nan_feature,
                                     self.ord_features_at_t,
