@@ -12,6 +12,7 @@ import torch
 import h5py
 import yaml
 import glob
+import math
 import os
 
 with open("configs/configs.yaml") as ymlfile:
@@ -76,7 +77,7 @@ class TrafficDataset(torch.utils.data.IterableDataset):
         self.slice_size = slice_size
         self.features_encoder = get_encoder(road_class, range(nb_buckets))
         self.road_enc = get_encoder(max_speed_cats, num_lanes_cats)
-        self.mapping = iter(read_cluster_mapping())
+        self.mapping = list(read_cluster_mapping())
 
     def __next__(self):
         """This yields the next exemple.
@@ -105,7 +106,6 @@ class TrafficDataset(torch.utils.data.IterableDataset):
         mask = self.mask[0, :, start:end]
 
         self.i += 1
-        breakpoint()
         return features, target, mask
 
     def __iter__(self):
@@ -113,9 +113,14 @@ class TrafficDataset(torch.utils.data.IterableDataset):
         workers are used, then each worker will get a list of cells to work on.
 
         """
-        # TODO Check worker's state
-        # TODO Select clusters to work on
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is not None: # Multiple workers
+            per_worker = int(math.ceil(len(self.mapping) / float(worker_info.num_workers)))
+            iter_start = worker_info.id * per_worker
+            iter_end = min(iter_start + per_worker, len(self.mapping))
+            self.mapping = self.mapping[iter_start:iter_end]
         # Initialize state
+        self.mapping = iter(self.mapping)
         self._load_new_cluster()
         self.i = 0
         return self
