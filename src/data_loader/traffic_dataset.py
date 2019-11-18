@@ -3,13 +3,11 @@ from src.utils.tensor import is_finite
 from src.data_loader.features import (
             max_speed_cats,
             num_lanes_cats,
-            road_class,
-            surface
+            road_class
         )
 from fastparquet import ParquetFile
 from itertools import product
 import torch
-import h5py
 import yaml
 import glob
 import math
@@ -17,6 +15,7 @@ import os
 
 with open("configs/configs.yaml") as ymlfile:
     cfg = yaml.load(ymlfile)['DataConfig']
+
 
 def get_encoder(*args):
     """Returns a mapping from features to index
@@ -26,10 +25,11 @@ def get_encoder(*args):
             cartesian product of all of them so go easy.
 
     Returns:
-        dict: Keys are tuples of features, value is the index to use for one hot
+        dict: Keys are tuples of features, value is the index to use for onehot
 
     """
     return {c: i for i, c in enumerate(product(*args))}
+
 
 def series_one_hot(tensor, num_feats=96):
     """Returns one hot encoded features for a time series
@@ -39,7 +39,7 @@ def series_one_hot(tensor, num_feats=96):
         num_feats (:obj:`int`, optional): Number of classes
 
     Returns:
-        torch.Tensor: Size NUM_FEATURES x NUM_NODES x TIME_WINDOW 
+        torch.Tensor: Size NUM_FEATURES x NUM_NODES x TIME_WINDOW
 
     """
     x = tensor[-1, :, :].long()
@@ -48,6 +48,7 @@ def series_one_hot(tensor, num_feats=96):
     cat_features_at_t = torch.zeros(num_feats, tensor.size(1), tensor.size(2), dtype=torch.float)
     cat_features_at_t[idxs[:, 0, :], idxs[:, 1, :], :] = 1.
     return torch.cat((tensor[:-1, :, :], cat_features_at_t), dim=0)
+
 
 class TrafficDataset(torch.utils.data.IterableDataset):
     """This Dataset class yields data for the speed models.
@@ -66,7 +67,7 @@ class TrafficDataset(torch.utils.data.IterableDataset):
 
     """
 
-    def __init__(self, G, nb_buckets = 24, slice_size = 30):
+    def __init__(self, G, nb_buckets=24, slice_size=30):
         """The instantiation method of the class.
 
         The __init__ method may be documented in either the class level
@@ -76,7 +77,7 @@ class TrafficDataset(torch.utils.data.IterableDataset):
         convention to document the __init__ method and be consistent with it.
 
         Note:
-            This method is fast because it does not preload the first grid cell.
+            This method is fast because it doesn't preload the first grid cell.
             If you want to prefetch the first grid cell you must first call the
             __iter__ method.
 
@@ -111,8 +112,6 @@ class TrafficDataset(torch.utils.data.IterableDataset):
         """
         if (self.i + self.slice_size) % (self.X.size(2) - 1) == 0:
             self._load_new_cluster()
-        indices = [(i, i + (self.slice_size)) for i
-                   in range(self.X.shape[2] - (self.slice_size))]
         start = self.i % self.X.size(0)
         end = start + self.slice_size
 
@@ -129,7 +128,7 @@ class TrafficDataset(torch.utils.data.IterableDataset):
 
         """
         worker_info = torch.utils.data.get_worker_info()
-        if worker_info is not None: # Multiple workers
+        if worker_info is not None:  # Multiple workers
             per_worker = int(math.ceil(len(self.mapping) / float(worker_info.num_workers)))
             iter_start = worker_info.id * per_worker
             iter_end = min(iter_start + per_worker, len(self.mapping))
@@ -155,8 +154,8 @@ class TrafficDataset(torch.utils.data.IterableDataset):
         df_filled['from_node'] = df['from_node']
         df_filled['to_node'] = df['to_node']
         self._prepare_static_features(df, id_to_idx)
-        self.X = self._build_dataset_to_tensor(df, id_to_idx).permute(2, 0 ,1)
-        #self.X_filled = self._build_dataset_to_tensor(df_filled, id_to_idx).permute(2, 0, 1)
+        self.X = self._build_dataset_to_tensor(df, id_to_idx).permute(2, 0, 1)
+        # self.X_filled = self._build_dataset_to_tensor(df_filled, id_to_idx).permute(2, 0, 1)
         self.mask = is_finite(self.X)
 
     def _load_speed_data(self, file_path):
@@ -207,10 +206,11 @@ class TrafficDataset(torch.utils.data.IterableDataset):
         """
 
         total_timesteps = df.shape[1] - 2
-        NUM_FEATS = 4#96 + 3#53 # TODO change NUM_FEATS
+        NUM_FEATS = 4
         dataset = torch.Tensor(total_timesteps, len(df), NUM_FEATS)
         for t in range(total_timesteps):
-            speed_is_nan_feature = torch.Tensor([0. if x != x else 1. for x in df[str(t)]]).unsqueeze(1)
+            speed_is_nan_feature = [0. if x != x else 1. for x in df[str(t)]]
+            speed_is_nan_feature = torch.Tensor(speed_is_nan_feature).unsqueeze(1)
             speed_features_at_t = torch.from_numpy(df[str(t)].to_numpy()).unsqueeze(1).float()
             idxs = map(lambda x: x + (t % self.nb_buckets, ), self.cat_features)
             idxs = map(lambda x: self.features_encoder[x], idxs)
@@ -228,13 +228,13 @@ class TrafficDataset(torch.utils.data.IterableDataset):
             max_speed_feature = float(arc['data'].metadata.get('maxspeed', '50'))
             max_speed_feature = min(max_speed_cats,
                                     key=lambda x: abs(x - max_speed_feature))
-        except:
+        except Exception as e:
             max_speed_feature = 50.
         try:
             num_lanes_feature = int(arc['data'].metadata.get('lanes', '1'))
             num_lanes_feature = min(num_lanes_cats,
                                     key=lambda x: abs(x - num_lanes_feature))
-        except:
+        except Exception as e:
             num_lanes_feature = 1
 
         return (arc['data'].roadClass.name, ), (max_speed_feature, num_lanes_feature)
