@@ -42,17 +42,12 @@ def series_one_hot(tensor, num_feats=96):
         torch.Tensor: Size NUM_FEATURES x NUM_NODES x TIME_WINDOW 
 
     """
-    tensor_size = (tensor.size(0) - 1 + num_feats, ) + tensor.size()[1:]
-    ans = torch.Tensor(*tensor_size)
-    ans[:-num_feats, :, :] = tensor[:-1, :, :]
     x = tensor[-1, :, :].long()
     y = torch.arange(x.size(0)).repeat(tensor.size(2), 1).t()
-    idxs = torch.stack((x, y))
-    cat_features_at_t = torch.zeros(num_feats, tensor_size[1], tensor_size[2], dtype=torch.float)
-    for i in range(cat_features_at_t.size(2)):
-        cat_features_at_t[idxs[:, 0, i], idxs[:, 1, i], i] = 1.
-    ans[-num_feats:, :, :] = cat_features_at_t
-    return ans
+    idxs = torch.stack((x, y), dim=1)
+    cat_features_at_t = torch.zeros(num_feats, tensor.size(1), tensor.size(2), dtype=torch.float)
+    cat_features_at_t[idxs[:, 0, :], idxs[:, 1, :], :] = 1.
+    return torch.cat((tensor[:-1, :, :], cat_features_at_t), dim=0)
 
 class TrafficDataset(torch.utils.data.IterableDataset):
     """This Dataset class yields data for the speed models.
