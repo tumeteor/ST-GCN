@@ -19,9 +19,29 @@ with open("configs/configs.yaml") as ymlfile:
     cfg = yaml.load(ymlfile)['DataConfig']
 
 def get_encoder(*args):
+    """Returns a mapping from features to index
+
+    Args:
+        *args: Iterables of features to combine. The output space is the
+            cartesian product of all of them so go easy.
+
+    Returns:
+        dict: Keys are tuples of features, value is the index to use for one hot
+
+    """
     return {c: i for i, c in enumerate(product(*args))}
 
 def series_one_hot(tensor, num_feats=96):
+    """Returns one hot encoded features for a time series
+
+    Args:
+        tensor (torch.Tensor): Internal tensor given by the TrafficDataset
+        num_feats (:obj:`int`, optional): Number of classes
+
+    Returns:
+        torch.Tensor: Size NUM_FEATURES x NUM_NODES x TIME_WINDOW 
+
+    """
     tensor_size = (tensor.size(0) - 1 + num_feats, ) + tensor.size()[1:]
     ans = torch.Tensor(*tensor_size)
     ans[:-num_feats, :, :] = tensor[:-1, :, :]
