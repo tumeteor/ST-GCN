@@ -50,22 +50,17 @@ can be claimed for one pod.
 
 ## Feature extraction and data transformation
 
-* The `preprocess.py` script expects data from [speed-model-dataset-spark](https://gitlab.mobilityservices.io/am/roam/realtime/speed-model-dataset-spark),
-  with numpy tensors (each tensor corresponds to a grid), in the shape of `[num_nodes, 1, num_timesteps]`. Currently, all
+To speed up and optimize CPU / GPU loads, we move all the data tranformation logics from Pytorch dataloader to preprocessing component. In specific:
+
+* The `preprocess.py` script expects data with numpy tensors (each tensor corresponds to a grid), in the shape of `[num_nodes, 1, num_timesteps]`. Currently, all
   the downstream transformations are done using numpy / pandas on a single machine.
-  
-  The input speed data is cached at (in the general AWS account):
-   - s3://aws-acc-001-1053-r1-master-data-science/speed/dataset/mytaxi/v3-timeseries-partitions-1hour/
+ 
   
   Then for every tensor, we enrich with features extracted from JURBEY and some basic time-senstive features, 
   window-slicing it to new tensor of shape `[num_nodes, num_features, num_look_back_step, num_timesteps]` for `data`,
   and `[num_nodes, num_features, num_look_ahead_step, num_timesteps]` for `target`, similarly for `mask`.
-  The window-sliced data is cached at:
-   -  s3://aws-acc-001-1053-r1-master-data-science/speed/dataset/mytaxi/features_400/
    
  * NOTE 1: the grid-based clustering is done separately and the mapping is in the `cluster-mapping.csv` file.
-   The adjacency matrices and edge list wrt. cluster (grid) IDs are cached in:
-   -  s3://aws-acc-001-1053-r1-master-data-science/speed/dataset/mytaxi/adjs/
    
  * NOTE 2: The current memory botteneck is from the window-slicing of the feature tensors, there are 2 alternatives:
    (1) do it sequentially for every chunk of time steps and (2) use distributed framework i.e., Spark.
