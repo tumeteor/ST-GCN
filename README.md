@@ -66,5 +66,7 @@ To speed up and optimize CPU / GPU loads, we move all the data tranformation log
    (1) do it sequentially for every chunk of time steps and (2) use distributed framework i.e., Spark.
   
 
+ ## License
  
+ Apache 2.0
 
